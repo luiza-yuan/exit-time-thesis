@@ -9,6 +9,11 @@
 # (5) notes at the bottom regarding scaling and theoretical exit time estimation issues (still in progress)
 #################################
 
+######### Modifications by Luiza Yuan, 10.03.2024 #########
+# (1) Setup github 
+# (2) These are comments added from RStudio
+#################################
+
 rm(list = ls())
 graphics.off()
 
