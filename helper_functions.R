@@ -67,7 +67,7 @@ get_theoretical_D <- function(D, min_x = -5, max_x = 5, interpol_steps = 100) {
         potential = -(a1 * x + a2 * x ^ 2 + a3 * x ^ 3 + a4 *
                                    x ^ 4)) %>%
         # Add effective potential
-        mutate(EPF = c(NA, get_effective_potential(list(x = x, y = drift),
+        dplyr::mutate(EPF = c(NA, get_effective_potential(list(x = x, y = drift),
                                              list(x = x, y = diffusion),
                                       interpol_steps = interpol_steps,
                                       xvec = x)$EPF)) %>%
