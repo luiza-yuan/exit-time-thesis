@@ -14,14 +14,31 @@
 # (2) These are comments added from RStudio
 #################################
 
+######### Modifications by Kyra Evers, 07.02.2024 #########
+# (1) helper_function.R
+# (2) plot formatting changed
+#################################
+
+######### Modifications by Luiza Yuan, 09.02.2024 #########
+# (1) changes to forloop (e.g. added datagen, nr_steps_bif, modified some arguments)
+#################################
+
+######### Modifications by Luiza Yuan, 05.03.2024 & 15.03.2024 #########
+# (1) alternative resilience metrics calculation: (1) basin width (2) potential depth (3) variance around modes of probability distribution and (4) skewness around modes of probability distribution
+#################################
+
+######### Modifications by Luiza Yuan, 20.02.2024 #########
+# (1) parallel processing (still needs edits to plot when mean exit time is not estimated)
+#################################
+
 rm(list = ls())
 graphics.off()
 
 # Create necessary directories
 filepath_base = dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(filepath_base)
-filepath_figs = file.path(filepath_base, "figs_domain_check") #figs_theoreticalET_scalecheck")
-filepath_est = file.path(filepath_base, "est_domain_check")# "est_theoreticalET_scalecheck")
+filepath_figs = file.path(filepath_base, "figs_parallel_check") #figs_theoreticalET_scalecheck")
+filepath_est = file.path(filepath_base, "est_parallel_check")# "est_theoreticalET_scalecheck")
 if (!dir.exists(filepath_figs)) {
   dir.create(filepath_figs, recursive = T)
 }
@@ -32,6 +49,8 @@ library(stats)
 library(Langevin)
 library(dplyr)
 library(ggplot2)
+library(parallel) # added 05.03.2024
+library(doParallel) # added 05.03.2024
 library(foreach)
 # library(tuneR)
 library(cowplot)
@@ -40,34 +59,32 @@ library(latex2exp)
 
 # source("ExitTime_BinMethod_PeterLakeExample-main/DDbintau.R")
 source(file.path(dirname(filepath_base), "ExitTime_BinMethod_PeterLakeExample-main/DDbintau.R"))
-source("helper_functions.R")
+source("helper_functions.R") # attention: make sure that it is the version updated 20.03.2024
 
 # Choose parameters to loop through
 forloop = tidyr::expand_grid(
+  # datagen = "Langevin",
+  nr_steps_bif = 5, #length.out for deepening, asymmetry, etc.
   type_D2 = c("constant"),
   #"quadratic",
   scenario = c("2fps-balanced-deepening"),
-  # "2fps-balanced-shallowing",
   # "left-fp-gains-dominance",
   # "right-fp-gains-dominance"),
-  strength_D2 = c(.3),
-  sf = 2, #c(10, 100),
-  N = 100, #c(500, 100000),
-  bins = 100, #c(30,40,100),
-  interpol_steps = 20,# c(50,100),
-  ntau = 10, # c(3,5, 10),
+  strength_D2 = c(.3, .5),
+  sf = 10, #c(10, 100),
+  N = 1000, #c(500, 100000),
+  bins = 100, #c(30, 40, 100),
+  interpol_steps = 100,# c(50, 100, 500),
+  ntau = 10, # c(3, 5, 10),
   bw_sd = .3,
   #10000
   noise_iter = c(1) #c(1:5)
 ) %>% purrr::transpose() %>% unique()
 
-
-
-# Parameters
+# Debug
 datagen = "Langevin"
 nr_steps_bif = 5
 
-# Debug
 step_idx = 1
 for_par=forloop[[1]]
 type_D2 = for_par$type_D2
@@ -76,7 +93,7 @@ bins = for_par$bins
 strength_D2 = for_par$strength_D2
 bw_sd = for_par$bw_sd
 ntau= for_par$ntau
-interpol_steps = for_par$interpol_steps#100 #30, 60
+interpol_steps = for_par$interpol_steps
 sf = for_par$sf
 N = for_par$N
 noise_iter = for_par$noise_iter
