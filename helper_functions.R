@@ -1,3 +1,7 @@
+### Modified on March 18th by Luiza ###
+# (1) change in est_Carp_D function to calculate theoretical exit time when estimated fps are not "stable" "unstable" "stable"
+# (2) specify function packages for parallel processing (removed 'pracma' for ceiling function)
+# (3) removed if(datagen = "Langevin") in plot_overview_new
 
 # Generate timeseries using Langevin
 generate_Langevin <- function(N,
@@ -322,16 +326,24 @@ est_D_Carp <- function(Ux,
   )
 
   Theoretical_df = get_theoretical_D(D, min_x = min(xvec), max_x = max(xvec), interpol_steps = length(xvec)) # KCE
-
+  
+  # Only if there are two stable equilibria on the outside and on unstable equilibrium on the inside, compute exit time
+  # if (identical(stabs$stab_fps, c("stable", "unstable", "stable"))) {
+  # Get exit time using theoretical drift and diffusion
+  TheoreticalExitTime = get_exit_time(
+    Theoretical_df %>% dplyr::filter(variable == "drift") %>% dplyr::rename(y = value) %>% dplyr::arrange(x) %>% dplyr::select(-variable),
+    Theoretical_df %>% dplyr::filter(variable == "diffusion")  %>% dplyr::rename(y = value)  %>% dplyr::arrange(x) %>% dplyr::select(-variable),
+    xeq = stabs$fps,
+    # theoretical fixed points
+    xvec = xvec
+  ) # interpolation vector specifying points on the x-axis
+  # } else{
+  #   TheoreticalExitTime = list(Theoretical_df = data.frame())
+  # }
+  
   # Only if there are two stable equilibria on the outside and on unstable equilibrium on the inside, compute exit time
   if (identical(Pot$stab_xeq, c("stable", "unstable", "stable"))) {
-
-    # Get exit time using theoretical drift and diffusion
-    TheoreticalExitTime = get_exit_time( Theoretical_df %>% filter(variable == "drift") %>% rename(y = value) %>% arrange(x) %>% select(-variable),
-                                        Theoretical_df %>% filter(variable == "diffusion")  %>% rename(y = value)  %>% arrange(x) %>% select(-variable),
-                             xeq = stabs$fps,   # theoretical fixed points
-                             xvec = xvec) # interpolation vector specifying points on the x-axis
-
+    
     # Exit time calculated with estimated drift and diffusion
     EstimatedExitTime = get_exit_time(
       D1s = DD$D1s,
@@ -340,11 +352,10 @@ est_D_Carp <- function(Ux,
       # estimated fixed points
       xvec = xvec # interpolation vector specifying points on the x-axis
     )
-
   } else {
-    EstimatedExitTime = list()
-    ET_df = NA
+    EstimatedExitTime = list(ET_df = data.frame())
   }
+  
   # Format results (estimated D1 & D2, effective potential)
   est_df_Carp = data.frame(
     x = DD$bin.mid,
@@ -437,9 +448,9 @@ apply_DDbintau <- function(Ux,
   D2s_idx = purrr::map(D2s, function(x) {
     which(!is.na(x))
   })
-  idx = sort(intersect(
-    intersect(D1s_idx$x, D1s_idx$y),
-    intersect(D2s_idx$x, D2s_idx$y)
+  idx = sort(dplyr::intersect(
+    dplyr::intersect(D1s_idx$x, D1s_idx$y),
+    dplyr::intersect(D2s_idx$x, D2s_idx$y)
   ))
   D1s = list(x = D1s$x[idx],
              y = D1s$y[idx])
@@ -497,7 +508,7 @@ get_effective_potential = function(D1s,
   Dratio = D1s$y / D2s$y
   D1.over.D2 = function(x) {
     # D2 = 0.5*sigma^2(x) for standard Langevin
-    yhat = approx(
+    yhat = stats::approx(
       x = D1s$x,
       y = Dratio,
       xout = x,
@@ -530,7 +541,7 @@ get_effective_potential = function(D1s,
     #integral = integrate(D1.over.D2,lower=x0,upper=x1)$value
     #integral = integrate(Vectorize(D1.over.D2),lower=x0,upper=x1)$value
     # This function from the cubature package seems to work
-    hcub = hcubature(f = D1.over.D2,
+    hcub = cubature::hcubature(f = D1.over.D2,
                      lowerLimit = x0,
                      upperLimit = x1)
     logdiff = log(0.5 * D2fun(xhalf, D2s) ^ 2)  # D2 = 0.5*sigma^2 for standard Langevin
@@ -642,9 +653,9 @@ get_potential = function(D1s,
   #
   # Calculate and plot effective potential  ------------------------------------------
   EP = get_effective_potential(D1s,
-                                     D2s,
-                                     interpol_steps,
-                                     xvec)
+                               D2s,
+                               interpol_steps,
+                               xvec)
 
   #  Dratio = D1s$y / D2s$y
   # D1.over.D2 = function(x) {
@@ -859,7 +870,7 @@ get_exit_time <- function(D1s,
     while ("try-error" %in% class(trycol) & atol_ <= 1e-2) {
       atol_ = 10 ** (log10(atol_) + 1) # Increase tolerance
       trycol <- try({
-        bvptwp(
+        bvpSolve::bvptwp(
           yini = yini,
           x = x,
           func = feval2,
@@ -934,17 +945,17 @@ get_exit_time <- function(D1s,
   }
 
   # Format
-  ET_df = rbind(ETL[1:nrow(ETL), ],
+  ET_df = rbind(ETL[1:nrow(ETL),],
                 ETR[c(2:nrow(ETR),
-                               nrow(ETR)), ]) %>%
+                      nrow(ETR)),]) %>%
     as.data.frame() %>%
     dplyr::rename("ET" = "T", "dET/dx" = "dT/dx") %>%
-    mutate(
+    dplyr::mutate(
       yfinner = yfinner,
       wts = wts,
       wtraw_err = wtraw_err,
       LR = c(rep("left", nL), rep("right", nR))
-    )  %>% tidyr::gather(variable, value,-c(x, wtraw_err)) %>%
+    )  %>% tidyr::gather(variable, value, -c(x, wtraw_err)) %>%
     dplyr::rename(err = wtraw_err) %>% dplyr::mutate(err = ifelse(variable == "wts", NA, err))
 
   ET_df[ET_df$x == min(ET_df$x), "x"] = ET_df[ET_df$x == min(ET_df$x), "x"] - 0.01
@@ -986,7 +997,7 @@ get_weights <- function(x, nx, nL, nR, D1s, D2s, ETL, ETR) {
   wtraw = rep(0, nx)
   wtraw_err = wtraw
   for (i in 2:(nx)) {
-    hcub = hcubature(
+    hcub = cubature::hcubature(
       f = finner,
       lowerLimit = x[1],
       upperLimit = x[i],
@@ -1066,7 +1077,7 @@ new_plot_overview <-
            filepath_image,
            plot_t = c(10000 * 100, Inf)[1]) {
     with(out, {
-      if (datagen == "Langevin") {
+      #if (datagen == "Langevin") {
         title_plot = latex2exp::TeX(
           sprintf(
             "%s; %s $D_2$ (strength: %.2f); $f_s$ = %d, $N$ = %d",
@@ -1078,14 +1089,14 @@ new_plot_overview <-
           ),
           bold = TRUE
         )
-      } else if (grepl("noise", datagen, fixed = T)) {
-        title_plot = latex2exp::TeX(sprintf(
-          "%s noise; $f_s$ = %d, $N$ = %d",
-          stringr::str_to_title(sub("_noise", "", datagen)),
-          sf,
-          N
-        ))
-      }
+      # } else if (grepl("noise", datagen, fixed = T)) {
+      #   title_plot = latex2exp::TeX(sprintf(
+      #     "%s noise; $f_s$ = %d, $N$ = %d",
+      #     stringr::str_to_title(sub("_noise", "", datagen)),
+      #     sf,
+      #     N
+      #   ))
+      # }
 
       # Plotting parameters
       lwd_FP = 0.8
@@ -1132,21 +1143,21 @@ new_plot_overview <-
       #sz_point = ifelse(N * sf <= 10000, 1, ifelse(N * sf <= 1000000, .1, .01))
       sz_point = 0.35
       pl_ts <-
-        ggplot(data.frame(t = 1:plot_t / sf / 60, x = as.vector(Ux)[1:plot_t])) +
-        geom_hline(
+        ggplot2::ggplot(data.frame(t = 1:plot_t / sf / 60, x = as.vector(Ux)[1:plot_t])) +
+        ggplot2::geom_hline(
           yintercept = stabs$fps,
           color = col_FP,
           linetype = 'dashed',
           linewidth = lwd_FP,
           alpha = 1
         ) +
-        geom_point(
-          aes(x = t, y = x),
+        ggplot2::geom_point(
+          ggplot2::aes(x = t, y = x),
           alpha = .75,
           col = "gray30",
           size = sz_point
         )    +
-        labs(
+        ggplot2::labs(
           x = "Time (min)",
           y = latex2exp::TeX("$x$"),
           title = title_plot,
@@ -1157,39 +1168,39 @@ new_plot_overview <-
               paste0(sort(round(est_Carp$xeq, 2)), collapse = ", ")
             )
         ) +
-        scale_x_continuous(expand = c(0, 0))
+        ggplot2::scale_x_continuous(expand = c(0, 0))
 
       plot_t_inset = 100 * sf
-      pl_ts_inset = ggplot(data.frame(t = 1:plot_t_inset / sf / 60, x = as.vector(Ux)[1:plot_t_inset])) +
-        geom_hline(
+      pl_ts_inset = ggplot2::ggplot(data.frame(t = 1:plot_t_inset / sf / 60, x = as.vector(Ux)[1:plot_t_inset])) +
+        ggplot2::geom_hline(
           yintercept = stabs$fps,
           color = col_FP,
           linetype = 'dashed',
           linewidth = lwd_FP,
           alpha = 1
         ) +
-        geom_point(
-          aes(x = t, y = x),
+        ggplot2::geom_point(
+          ggplot2::aes(x = t, y = x),
           size = .3,
           alpha = .75,
           col = "gray30"
         )  +
-        labs(x = "", y = "", title = "") +
-        scale_x_continuous(expand = c(.005, 0))
+        ggplot2::labs(x = "", y = "", title = "") +
+        ggplot2::scale_x_continuous(expand = c(.005, 0))
 
       pl_ts_with_inset <-
         cowplot::ggdraw() +
         cowplot::draw_plot(style_plot(pl_ts)) +
         cowplot::draw_plot(
           style_plot(pl_ts_inset)  +
-            theme(
+            ggplot2::theme(
               # panel.background = element_rect(fill='transparent'),
-              plot.background = element_rect(fill = 'transparent', color =
+              plot.background = ggplot2::element_rect(fill = 'transparent', color =
                                                NA),
-              panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank()
+              panel.grid.major = ggplot2::element_blank(),
+              panel.grid.minor = ggplot2::element_blank()
             ) +
-            theme(plot.margin = unit(c(0, 0, 0, 0), "pt")),
+            ggplot2::theme(plot.margin = unit(c(0, 0, 0, 0), "pt")),
           x = 0.04,
           y = .12,
           width = .2,
@@ -1197,23 +1208,23 @@ new_plot_overview <-
         )
 
       # Plot density
-      pl_dens <- ggplot(data.frame(x = as.vector(Ux))) +
-        geom_histogram(
-          aes(x = x, y = after_stat(density)),
+      pl_dens <- ggplot2::ggplot(data.frame(x = as.vector(Ux))) +
+        ggplot2::geom_histogram(
+          ggplot2::aes(x = x, y = ggplot2::after_stat(density)),
           bins = bins,
           colour = "lightgrey",
           fill = "white"
         ) +
-        geom_density(aes(x = x), linewidth = 0.8)  +
-        geom_vline(
+        ggplot2::geom_density(ggplot2::aes(x = x), linewidth = 0.8)  +
+        ggplot2::geom_vline(
           xintercept = stabs$fps,
           color = col_FP,
           linetype = 'dashed',
           linewidth = lwd_FP,
           alpha = .75
         ) +
-        scale_x_continuous(expand = c(0, 0)) +
-        labs(
+        ggplot2::scale_x_continuous(expand = c(0, 0)) +
+        ggplot2::labs(
           x = latex2exp::TeX("$x$"),
           y = "Density",
           title = "",
@@ -1243,14 +1254,14 @@ new_plot_overview <-
         # est_Carp$ET_df,
         # est_Carp$Theoretical_ET_df
       # ) %>%
-        filter(variable %in% names(variable.labs)) %>%
-        mutate(
+        dplyr::filter(variable %in% names(variable.labs)) %>%
+        dplyr::mutate(
           value = as.numeric(as.character(value)),
           variable_name = dplyr::recode_factor(variable,!!!variable.labs, .ordered = T)
         ) %>%
-        ggplot() +
+        ggplot2::ggplot() +
         # Add zero line
-        geom_hline(
+        ggplot2::geom_hline(
           yintercept = 0,
           color = 'grey10',
           linetype = "solid",
@@ -1258,15 +1269,15 @@ new_plot_overview <-
           alpha = 1
         ) +
         # Add fixed points
-        geom_vline(
+        ggplot2::geom_vline(
           data = est_Carp$fp_df,
-          aes(xintercept = xintercept,
+          ggplot2::aes(xintercept = xintercept,
               color = color),
           linetype = 'dashed',
           linewidth = lwd_FP,
           alpha = .75
         ) +
-        scale_color_manual(
+        ggplot2::scale_color_manual(
           name = "",
           breaks = c("unstable", "stable", unique(variable.labs)),
           values = c(
@@ -1288,10 +1299,10 @@ new_plot_overview <-
         ) +
         ggnewscale::new_scale_color() +
         # Add error
-        geom_point(aes(x = x, y = err, color = source), shape = 4, color = 'gray40', size = .5) +
+        ggplot2::geom_point(ggplot2::aes(x = x, y = err, color = source), shape = 4, color = 'gray40', size = .5) +
         # Add estimated variables
-        geom_point(aes(x = x, y = value, color = source), size = .5) +
-        scale_color_manual(
+        ggplot2::geom_point(ggplot2::aes(x = x, y = value, color = source), size = .5) +
+        ggplot2::scale_color_manual(
           name = "",
           breaks = c("Theoretical", "Estimated"),
           values = c(
@@ -1299,8 +1310,8 @@ new_plot_overview <-
             "Estimated" = 'red3'),
           guide = "none"
         ) +
-            scale_x_continuous(expand = c(0, 0)) +
-        scale_y_continuous(position = 'right') +
+        ggplot2::scale_x_continuous(expand = c(0, 0)) +
+        ggplot2::scale_y_continuous(position = 'right') +
         # ggh4x::facet_manual(
         #   vars(variable_name),
         #   scales = "free_y",
@@ -1310,7 +1321,7 @@ new_plot_overview <-
         ggh4x::facet_grid2(source ~ variable_name,
                             scales = 'free_y', independent = 'y',
                             labeller = label_parsed, switch = "y", axes = "all") +
-        labs(
+        ggplot2::labs(
           y = "",
           x = latex2exp::TeX("$x$"),
           title = latex2exp::TeX(
@@ -1335,20 +1346,20 @@ new_plot_overview <-
             )
         ) +
         # scale_fill_manual(values = "black") +  # Use a single color for fill
-        theme(legend.position = "none")
+        ggplot2::theme(legend.position = "none")
 
       # Combine plots
       pl_combo = cowplot::plot_grid(
         cowplot::plot_grid(
           pl_ts_with_inset,
-          style_plot(pl_dens) + labs(x = ""),
+          style_plot(pl_dens) + ggplot2::labs(x = ""),
           rel_widths = c(1, .3),
           nrow = 1
         ),
         NULL,
         # Add space between plots
         style_plot(pl_Carp) +
-          theme(legend.position = c(.87, 1)),
+          ggplot2::theme(legend.position = c(.87, 1)),
         ncol = 1,
         rel_heights = c(.75, .025, 1)
       )
@@ -1372,25 +1383,25 @@ new_plot_overview <-
 # Style plot
 style_plot <- function(pl) {
   return(
-    pl + theme_bw() +
-      theme(
-        plot.title = element_text(hjust = 0.5, size = 20),
-        axis.title = element_text(hjust = 0.5, size =
+    pl + ggplot2::theme_bw() +
+      ggplot2::theme(
+        plot.title = ggplot2::element_text(hjust = 0.5, size = 20),
+        axis.title = ggplot2::element_text(hjust = 0.5, size =
                                     16),
-        axis.text = element_text(size =
+        axis.text = ggplot2::element_text(size =
                                    12),
-        legend.title = element_text(hjust = 0.5, size =
+        legend.title = ggplot2::element_text(hjust = 0.5, size =
                                       16),
-        legend.text = element_text(hjust = 0.5, size =
+        legend.text = ggplot2::element_text(hjust = 0.5, size =
                                      18),
-        plot.subtitle = element_text(hjust = 0.5, size = 18),
+        plot.subtitle = ggplot2::element_text(hjust = 0.5, size = 18),
         # Increase font size facet labels
-        strip.text.y = element_text(size = 16,
-                                    margin = margin(0.1, 0.1, 0.1, 0.1, "cm")),
-        strip.text.x = element_text(size = 16,
-                                    margin = margin(0.1, 0.1, 0.1, 0.1, "cm")),
+        strip.text.y = ggplot2::element_text(size = 16,
+                                    margin = ggplot2::margin(0.1, 0.1, 0.1, 0.1, "cm")),
+        strip.text.x = ggplot2::element_text(size = 16,
+                                    margin = ggplot2::margin(0.1, 0.1, 0.1, 0.1, "cm")),
         plot.margin = unit(c(10, 10, 10, 10), "pt"),
-        text = element_text(family = "serif")
+        text = ggplot2::element_text(family = "serif")
       )
   )
 }
