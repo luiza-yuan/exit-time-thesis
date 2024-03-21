@@ -169,6 +169,7 @@ functions <-
 foreach(for_par = forloop) %do% {
   with(for_par, {
     print(as.data.frame(for_par))
+    #print("step 1")
     
     # Get polynomial coefficients for forloop
     Ds = get_D(nr_steps_bif,
@@ -180,7 +181,9 @@ foreach(for_par = forloop) %do% {
     foreach(step_idx = 1:nr_steps_bif,
             D = Ds,
             # .packages = c("ggplot2"),
+            # .export = c("interpol_steps"),
             .export = c(functions)) %dopar% {
+              #print("step 2")
               
               # Setup and create filepaths
               paths = do.call(setup_filepaths, utils::modifyList(
@@ -201,8 +204,12 @@ foreach(for_par = forloop) %do% {
                   bw_sd = bw_sd
                 )
               ))
+              
+              # print(paths)
 
               if (!file.exists(paths$filepath_out)) {
+                
+                # print("step 3")
                 
                 # Generate timeseries
                 Ux = do.call(generate_Langevin, utils::modifyList(D, list(
