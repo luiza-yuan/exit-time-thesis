@@ -9,11 +9,6 @@
 # (5) notes at the bottom regarding scaling and theoretical exit time estimation issues (still in progress)
 #################################
 
-######### Modifications by Luiza Yuan, 10.03.2024 #########
-# (1) Setup github 
-# (2) These are comments added from RStudio
-#################################
-
 ######### Modifications by Kyra Evers, 07.02.2024 #########
 # (1) helper_function.R
 # (2) plot formatting changed
@@ -25,6 +20,11 @@
 
 ######### Modifications by Luiza Yuan, 05.03.2024 & 15.03.2024 #########
 # (1) alternative resilience metrics calculation: (1) basin width (2) potential depth (3) variance around modes of probability distribution and (4) skewness around modes of probability distribution
+#################################
+
+######### Modifications by Luiza Yuan, 10.03.2024 #########
+# (1) Setup github 
+# (2) These are comments added from RStudio
 #################################
 
 ######### Modifications by Luiza Yuan, 20.02.2024 #########
@@ -99,15 +99,77 @@ N = for_par$N
 noise_iter = for_par$noise_iter
 add_to_x = .5
 
-# Set up cluster
-# cl <- parallel::makeCluster(4)
+# # Set up cluster
+# cl <- parallel::makeCluster(detectCores() - 1, type = "PSOCK")
 # doParallel::registerDoParallel(cl)
+# 
+# getDoParWorkers() #check how many workers 'foreach' is going to use
+
+# Set up cluster (forking)
+cl <- parallel::makeForkCluster(detectCores() - 1) # using forking
+doParallel::registerDoParallel(cl)
+
+getDoParWorkers() #check how many workers 'foreach' is going to use
+
+# Packages, functions, variables 
+packages <-
+  c(
+    "bvpSolve",
+    "cubature",
+    "stats",
+    "Langevin",
+    "dplyr",
+    "ggplot2",
+    "parallel",
+    "doParallel",
+    "foreach",
+    "cowplot",
+    "ggnewscale",
+    "latex2exp"
+  )
+variables <-
+  c(
+    "datagen",
+    "nr_steps_bif",
+    "type_D2",
+    "scenario",
+    "strength_D2",
+    "sf",
+    "N",
+    "bins",
+    "interpol_steps",
+    "ntau",
+    "bw_sd",
+    "noise_iter"
+  )
+functions <-
+  c(
+    "apply_DDbintau",
+    "D1fun",
+    "D2fun",
+    "DDbins",
+    "est_D_Carp",
+    "finner",
+    "generate_Langevin",
+    "get_D",
+    "get_effective_potential",
+    "get_exit_time",
+    "get_potential",
+    "get_stability",
+    "get_theoretical_D",
+    "get_weights",
+    "gg",
+    "new_plot_overview",
+    "poly3",
+    "setup_filepaths",
+    "style_plot"
+  )
 
 # Loop through scenarios
 foreach(for_par = forloop) %do% {
   with(for_par, {
     print(as.data.frame(for_par))
-
+    
     # Get polynomial coefficients for forloop
     Ds = get_D(nr_steps_bif,
                scenario,
@@ -116,7 +178,10 @@ foreach(for_par = forloop) %do% {
 
     # Loop through steps in bifurcation parameter
     foreach(step_idx = 1:nr_steps_bif,
-            D = Ds) %do% {
+            D = Ds,
+            # .packages = c("ggplot2"),
+            .export = c(functions)) %dopar% {
+              
               # Setup and create filepaths
               paths = do.call(setup_filepaths, utils::modifyList(
                 D,
@@ -129,11 +194,16 @@ foreach(for_par = forloop) %do% {
                   sf = sf,
                   N = N,
                   noise_iter = noise_iter,
-                  step_idx = step_idx, bins=bins, ntau=ntau, interpol_steps=interpol_steps, bw_sd=bw_sd
+                  step_idx = step_idx,
+                  bins = bins,
+                  ntau = ntau,
+                  interpol_steps = interpol_steps,
+                  bw_sd = bw_sd
                 )
               ))
 
               if (!file.exists(paths$filepath_out)) {
+                
                 # Generate timeseries
                 Ux = do.call(generate_Langevin, utils::modifyList(D, list(
                   N = N,
@@ -172,9 +242,16 @@ foreach(for_par = forloop) %do% {
 }
 # parallel::stopCluster(cl) # End cluster
 
+### Check parallel processing output ###
+attempt1_noise0.3_step1 <-
+  readRDS(
+    file.path(
+      dirname(filepath_base),
+      "est_parallel_check/2fps-balanced-deepening/constant-D2/D2strength0.3000_sf10_N500_iter0001_step0001_pars-1.00_0.00_1.00_0.00_0.00_0.00_0.30_bins50_ntau10_interpol100_bw0.30.RDS"
+    )
+  )
 
-
-# Notes:
+# Notes from Luiza Yuan, 29.01.2024:
 
 #################################################################################################################
 #I just wanted to check whether differences in the plots for theoretical drift, diffusion, and potential were simply due to differences in the min and max x's used in sf10 and sf100
