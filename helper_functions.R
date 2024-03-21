@@ -1,4 +1,4 @@
-### Modified on March 18th by Luiza ###
+### Modifications by Luiza 18.03.2024 ###
 # (1) change in est_Carp_D function to calculate theoretical exit time when estimated fps are not "stable" "unstable" "stable"
 # (2) specify function packages for parallel processing (removed 'pracma' for ceiling function)
 # (3) removed if(datagen = "Langevin") in plot_overview_new
