@@ -82,7 +82,7 @@ forloop = tidyr::expand_grid(
 ) %>% purrr::transpose() %>% unique()
 
 # Debug
-datagen = "Langevin"
+#datagen = "Langevin"
 nr_steps_bif = 5
 
 step_idx = 1
@@ -247,7 +247,7 @@ foreach(for_par = forloop) %do% {
             }
   })
 }
-# parallel::stopCluster(cl) # End cluster
+parallel::stopCluster(cl) # End cluster
 
 ### Check parallel processing output ###
 attempt1_noise0.3_step1 <-
