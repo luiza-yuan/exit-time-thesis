@@ -1287,20 +1287,28 @@ new_plot_overview <-
         "unstable" = scales::viridis_pal(option = "inferno")(50)[29],
         "stable" = scales::viridis_pal(option = "viridis")(50)[45]
       )
-      variable.labs = c(
-       "drift" = latex2exp::TeX("Drift", output = 'character'),
-        "diffusion" = latex2exp::TeX("Diffusion", output =   'character'),
-       "potential" = latex2exp::TeX("Potential", output =
-                                      'character'),
-       # "negPF" = latex2exp::TeX("- Potential", output = 'character'),
-       "EPF" = latex2exp::TeX("Effective Potential", output = 'character'),
-       # "D1" = latex2exp::TeX("$D_1$", output = 'character'),
-        "ET" = latex2exp::TeX("Exit Time", output = 'character'),
-        # "D2" = latex2exp::TeX("$D_2$", output = 'character'),
-        "wts" = latex2exp::TeX("Weights", output = 'character')
-        # "drift" = latex2exp::TeX("Drift (estimated)", output = 'character'),
-        # "diff" = latex2exp::TeX("Diffusion (estimated)", output = 'character')
-      )
+      
+      # variables if exit time is estimated vs. not:
+      if(is.null(est_Carp$meanETl) == FALSE){
+        variable.labs = c(
+          "drift" = latex2exp::TeX("Drift", output = 'character'),
+          "diffusion" = latex2exp::TeX("Diffusion", output =   'character'),
+          "potential" = latex2exp::TeX("Potential", output = 'character'),
+          "EPF" = latex2exp::TeX("Effective Potential", output = 'character'),
+          "ET" = latex2exp::TeX("Exit Time", output = 'character'),
+          "wts" = latex2exp::TeX("Weights", output = 'character')
+        )
+      } else { #else? (not sure if other scenarios are possible, no standardized error messages yet)
+        variable.labs = c(
+          "drift" = latex2exp::TeX("Drift", output = 'character'),
+          "diffusion" = latex2exp::TeX("Diffusion", output =   'character'),
+          "potential" = latex2exp::TeX("Potential", output = 'character'),
+          "EPF" = latex2exp::TeX("Effective Potential", output = 'character')
+          #"ET" = latex2exp::TeX("Exit Time", output = 'character'),
+          #"wts" = latex2exp::TeX("Weights", output = 'character')
+        )
+      }
+      
       # variable.labs = c(
       #   "potential_analytical" = latex2exp::TeX("Potential (analytical)", output =
       #                                             'character'),
@@ -1419,7 +1427,6 @@ new_plot_overview <-
 
       # Plot theoretical drift, diffusion, and potential function
       xlim = max(abs(c(stabs$fps, Ux)))
-      # theoretical_df = get_theoretical_D(D, min_x = -xlim, max_x = xlim)
 
       # Carpenter (2022)
       # design <-
@@ -1503,32 +1510,61 @@ new_plot_overview <-
         ggh4x::facet_grid2(source ~ variable_name,
                             scales = 'free_y', independent = 'y',
                             labeller = label_parsed, switch = "y", axes = "all") +
-        ggplot2::labs(
-          y = "",
-          x = latex2exp::TeX("$x$"),
-          title = latex2exp::TeX(
-            sprintf(
-              "Theoretical coefficients: $D_1(x) = %.2fx^3 + %.2fx$; $D_2(x) = %.2fx^2 + %.2f$ (%d bins, $n_{tau}$ = %d, %d interpolation steps; smoothing = %.2f)",
-              D$d13,
-              D$d11,
-              D$d22,
-              D$d20,  bins, ntau, interpol_steps, bw_sd
-            ),
-            bold = T
-          ),
-          subtitle =
-            latex2exp::TeX(
-              sprintf(
-                "Theoretical Exit Time $mu_{left} =$ %.2f, $mu_{right} =$ %.2f; Estimated Exit Time $mu_{left} =$ %.2f (tol = %.4f, %sconverged), $mu_{right} =$ %.2f  (tol = %.4f, %sconverged)",
-                est_Carp$theo_meanETl,
-                est_Carp$theo_meanETr,
-                est_Carp$meanETl, est_Carp$atolL, ifelse(as.logical(est_Carp$diagn_ETL$df[["flag"]]),"not ", ""),
-                est_Carp$meanETr, est_Carp$atolR, ifelse(as.logical(est_Carp$diagn_ETL$df[["flag"]]),"not ", "")
-              )
-            )
-        ) +
         # scale_fill_manual(values = "black") +  # Use a single color for fill
         ggplot2::theme(legend.position = "none")
+      
+      if(is.null(est_Carp$meanETl) == FALSE){
+        pl_Carp = pl_Carp +
+          ggplot2::labs(
+            y = "",
+            x = latex2exp::TeX("$x$"),
+            title = latex2exp::TeX(
+              sprintf(
+                "Theoretical coefficients: $D_1(x) = %.2fx^3 + %.2fx$; $D_2(x) = %.2fx^2 + %.2f$ (%d bins, $n_{tau}$ = %d, %d interpolation steps; smoothing = %.2f)",
+                D$d13,
+                D$d11,
+                D$d22,
+                D$d20,  bins, ntau, interpol_steps, bw_sd
+              ),
+              bold = T
+            ),
+            subtitle =
+              latex2exp::TeX(
+                sprintf(
+                  "Theoretical Exit Time $mu_{left} =$ %.2f, $mu_{right} =$ %.2f; Estimated Exit Time $mu_{left} =$ %.2f (tol = %.4f, %sconverged), $mu_{right} =$ %.2f  (tol = %.4f, %sconverged)",
+                  est_Carp$theo_meanETl,
+                  est_Carp$theo_meanETr,
+                  est_Carp$meanETl, est_Carp$atolL, ifelse(as.logical(est_Carp$diagn_ETL$df[["flag"]]),"not ", ""),
+                  est_Carp$meanETr, est_Carp$atolR, ifelse(as.logical(est_Carp$diagn_ETL$df[["flag"]]),"not ", "")
+                )
+              )
+          ) 
+      } else {
+        pl_Carp = pl_Carp +
+          ggplot2::labs(
+            y = "",
+            x = latex2exp::TeX("$x$"),
+            title = latex2exp::TeX(
+              sprintf(
+                "Theoretical coefficients: $D_1(x) = %.2fx^3 + %.2fx$; $D_2(x) = %.2fx^2 + %.2f$ (%d bins, $n_{tau}$ = %d, %d interpolation steps; smoothing = %.2f)",
+                D$d13,
+                D$d11,
+                D$d22,
+                D$d20,  bins, ntau, interpol_steps, bw_sd
+              ),
+              bold = T
+            ),
+            subtitle =
+              latex2exp::TeX(
+                sprintf(
+                  "Theoretical Exit Time $mu_{left} =$ %.2f, $mu_{right} =$ %.2f; Exit Time could not be estimated",
+                  est_Carp$theo_meanETl,
+                  est_Carp$theo_meanETr
+                )
+              )
+          )
+      }
+        
 
       # Combine plots
       pl_combo = cowplot::plot_grid(
