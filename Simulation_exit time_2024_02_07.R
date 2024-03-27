@@ -37,8 +37,8 @@ graphics.off()
 # Create necessary directories
 filepath_base = dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(filepath_base)
-filepath_figs = file.path(filepath_base, "figs_parallel_check") #figs_theoreticalET_scalecheck")
-filepath_est = file.path(filepath_base, "est_parallel_check")# "est_theoreticalET_scalecheck")
+filepath_figs = file.path(filepath_base, "figs_sim_sf_change") #figs_theoreticalET_scalecheck")
+filepath_est = file.path(filepath_base, "est_sim_sf_change")# "est_theoreticalET_scalecheck")
 if (!dir.exists(filepath_figs)) {
   dir.create(filepath_figs, recursive = T)
 }
@@ -74,7 +74,7 @@ forloop = tidyr::expand_grid(
   sf = 10, #c(10, 100),
   N = 1000, #c(500, 100000),
   bins = 100, #c(30, 40, 100),
-  interpol_steps = 100,# c(50, 100, 500),
+  interpol_steps = 500,# c(50, 100, 500),
   ntau = 10, # c(3, 5, 10),
   bw_sd = .3,
   #10000
@@ -85,7 +85,7 @@ forloop = tidyr::expand_grid(
 #datagen = "Langevin"
 nr_steps_bif = 5
 
-step_idx = 1
+step_idx = 5
 for_par=forloop[[1]]
 type_D2 = for_par$type_D2
 scenario = for_par$scenario
@@ -257,6 +257,15 @@ attempt1_noise0.3_step1 <-
       "est_parallel_check/2fps-balanced-deepening/constant-D2/D2strength0.3000_sf10_N500_iter0001_step0001_pars-1.00_0.00_1.00_0.00_0.00_0.00_0.30_bins50_ntau10_interpol100_bw0.30.RDS"
     )
   )
+
+### Check new_plot_overview function when no mean exit times estimated ###
+out <- readRDS("/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Modified_for_Luiza_2024_02_07/est_parallel_check/2fps-balanced-deepening/constant-D2/N1000sf10interpol500/D2strength0.5000_sf10_N1000_iter0001_step0005_pars-3.00_0.00_3.00_0.00_0.00_0.00_0.50_bins100_ntau10_interpol500_bw0.30.RDS")
+filepath_image <- "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Modified_for_Luiza_2024_02_07/figs_parallel_check/2fps-balanced-deepening/constant-D2/N1000sf10interpol500/D2strength0.5000_sf10_N1000_iter0001_step0005_pars-3.00_0.00_3.00_0.00_0.00_0.00_0.50_bins100_ntau10_interpol500_bw0.30.pdf"
+new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
+# debug
+est_Carp = out$est_Carp
+stabs = out$stabs
+Ux = out$Ux
 
 # Notes from Luiza Yuan, 29.01.2024:
 
