@@ -302,6 +302,7 @@ est_D_Carp <- function(Ux,
   DD = apply_DDbintau(
     Ux = Ux,
     Tstep = Tstep,
+    # sf = sf, # added for scaling
     ntau = ntau,
     bins = bins,
     bw_sd = bw_sd
@@ -425,7 +426,7 @@ est_D_Carp <- function(Ux,
 
 apply_DDbintau <- function(Ux,
                            Tstep,
-                           sf, # added to check scaling
+                           # sf, # added to check scaling
                            ntau = 10,
                            bins,
                            bw_sd = 0.3) {
@@ -460,9 +461,11 @@ apply_DDbintau <- function(Ux,
     dplyr::intersect(D2s_idx$x, D2s_idx$y)
   ))
   D1s = list(x = D1s$x[idx],
-             y = (D1s$y[idx])*sf) # added multiply by sf for scaling
+             # y = (D1s$y[idx])*sf, # changed: multiply by sf for scaling
+             y = D1s$y[idx]) 
   D2s = list(x = D2s$x[idx],
-             y = ((D2s$y[idx])*sf)/2) # added multiply by sf and divide by 2 for scaling
+             # y = ((D2s$y[idx])*sf)/2, # changed: multiply by sf and divide by 2 for scaling
+             y = D2s$y[idx]) 
   bin.mid = bin.mid[idx]
 
   # Find equilibria - where D1 crosses x=0
