@@ -37,8 +37,8 @@ graphics.off()
 # Create necessary directories
 filepath_base = dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(filepath_base)
-filepath_figs = file.path(filepath_base, "figs_sim_sf_change") #figs_theoreticalET_scalecheck")
-filepath_est = file.path(filepath_base, "est_sim_sf_change")# "est_theoreticalET_scalecheck")
+filepath_figs = file.path(filepath_base, "figs_sim_N_change") #figs_theoreticalET_scalecheck")
+filepath_est = file.path(filepath_base, "est_sim_N_change")# "est_theoreticalET_scalecheck")
 if (!dir.exists(filepath_figs)) {
   dir.create(filepath_figs, recursive = T)
 }
@@ -59,7 +59,7 @@ library(latex2exp)
 
 # source("ExitTime_BinMethod_PeterLakeExample-main/DDbintau.R")
 source(file.path(dirname(filepath_base), "ExitTime_BinMethod_PeterLakeExample-main/DDbintau.R"))
-source("helper_functions.R") # attention: make sure that it is the version updated 20.03.2024
+source(file.path(filepath_base, "helper_functions.R")) # attention: make sure that it is the version updated 20.03.2024
 
 # Choose parameters to loop through
 forloop = tidyr::expand_grid(
@@ -70,15 +70,15 @@ forloop = tidyr::expand_grid(
   scenario = c("2fps-balanced-deepening"),
   # "left-fp-gains-dominance",
   # "right-fp-gains-dominance"),
-  strength_D2 = c(.3, .5),
+  strength_D2 = c(.3),
   sf = 10, #c(10, 100),
-  N = 1000, #c(500, 100000),
-  bins = 100, #c(30, 40, 100),
-  interpol_steps = 500,# c(50, 100, 500),
+  N = c(200), #c(500, 100000),
+  bins = c(20), #c(30, 40, 100),
+  interpol_steps = 100,# c(50, 100, 500),
   ntau = 10, # c(3, 5, 10),
   bw_sd = .3,
   #10000
-  noise_iter = c(1) #c(1:5)
+  noise_iter = c(1:5) #c(1:5)
 ) %>% purrr::transpose() %>% unique()
 
 # Debug
@@ -112,36 +112,36 @@ doParallel::registerDoParallel(cl)
 getDoParWorkers() #check how many workers 'foreach' is going to use
 
 # Packages, functions, variables 
-packages <-
-  c(
-    "bvpSolve",
-    "cubature",
-    "stats",
-    "Langevin",
-    "dplyr",
-    "ggplot2",
-    "parallel",
-    "doParallel",
-    "foreach",
-    "cowplot",
-    "ggnewscale",
-    "latex2exp"
-  )
-variables <-
-  c(
-    "datagen",
-    "nr_steps_bif",
-    "type_D2",
-    "scenario",
-    "strength_D2",
-    "sf",
-    "N",
-    "bins",
-    "interpol_steps",
-    "ntau",
-    "bw_sd",
-    "noise_iter"
-  )
+# packages <-
+#   c(
+#     "bvpSolve",
+#     "cubature",
+#     "stats",
+#     "Langevin",
+#     "dplyr",
+#     "ggplot2",
+#     "parallel",
+#     "doParallel",
+#     "foreach",
+#     "cowplot",
+#     "ggnewscale",
+#     "latex2exp"
+#   )
+# variables <-
+#   c(
+#     "datagen",
+#     "nr_steps_bif",
+#     "type_D2",
+#     "scenario",
+#     "strength_D2",
+#     "sf",
+#     "N",
+#     "bins",
+#     "interpol_steps",
+#     "ntau",
+#     "bw_sd",
+#     "noise_iter"
+#   )
 functions <-
   c(
     "apply_DDbintau",
