@@ -37,8 +37,8 @@ graphics.off()
 # Create necessary directories
 filepath_base = dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(filepath_base)
-filepath_figs = file.path(filepath_base, "figs_sim_N_change") #figs_theoreticalET_scalecheck")
-filepath_est = file.path(filepath_base, "est_sim_N_change")# "est_theoreticalET_scalecheck")
+filepath_figs = file.path(filepath_base, "figs_sim_sf_change") #figs_theoreticalET_scalecheck")
+filepath_est = file.path(filepath_base, "est_sim_sf_change")# "est_theoreticalET_scalecheck")
 if (!dir.exists(filepath_figs)) {
   dir.create(filepath_figs, recursive = T)
 }
@@ -47,6 +47,9 @@ library(bvpSolve)
 library(cubature)
 library(stats)
 library(Langevin)
+library(boot)
+library(tseries)
+library(spgs)
 library(dplyr)
 library(ggplot2)
 library(parallel) # added 05.03.2024
@@ -71,21 +74,21 @@ forloop = tidyr::expand_grid(
   # "left-fp-gains-dominance",
   # "right-fp-gains-dominance"),
   strength_D2 = c(.3),
-  sf = 10, #c(10, 100),
+  sf = 40, #c(10, 100),
   N = c(200), #c(500, 100000),
-  bins = c(20), #c(30, 40, 100),
+  bins = c(80), #c(30, 40, 100),
   interpol_steps = 100,# c(50, 100, 500),
   ntau = 10, # c(3, 5, 10),
   bw_sd = .3,
   #10000
-  noise_iter = c(1:5) #c(1:5)
+  noise_iter = c(1) #c(1:5)
 ) %>% purrr::transpose() %>% unique()
 
 # Debug
 #datagen = "Langevin"
 nr_steps_bif = 5
 
-step_idx = 5
+step_idx = 2
 for_par=forloop[[1]]
 type_D2 = for_par$type_D2
 scenario = for_par$scenario
@@ -249,14 +252,25 @@ foreach(for_par = forloop) %do% {
 }
 parallel::stopCluster(cl) # End cluster
 
+### attempt Bootstrap 
+boot::tsboot(attempt$Ux)
+?tsboot()
+
+### Assumption checks ###
+# Check stationary
+?adf.test
+tseries::adf.test(attempt$Ux)
+
+# Check Markov property
+spgs::markov.test(attempt$Ux, type = "lb.test")
+
+# Notes from Luiza Yuan, 03.2024:
 ### Check parallel processing output ###
-attempt1_noise0.3_step1 <-
+attempt<-
   readRDS(
-    file.path(
-      dirname(filepath_base),
-      "est_parallel_check/2fps-balanced-deepening/constant-D2/D2strength0.3000_sf10_N500_iter0001_step0001_pars-1.00_0.00_1.00_0.00_0.00_0.00_0.30_bins50_ntau10_interpol100_bw0.30.RDS"
-    )
+    "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesis/est_parallel_check/2fps-balanced-deepening/constant-D2/D2strength0.5000_sf10_N1000_iter0001_step0001_pars-1.00_0.00_1.00_0.00_0.00_0.00_0.50_bins100_ntau10_interpol100_bw0.30.RDS"
   )
+attempt$est_Carp$fp_df$xintercept[4]
 
 ### Check new_plot_overview function when no mean exit times estimated ###
 out <- readRDS("/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Modified_for_Luiza_2024_02_07/est_parallel_check/2fps-balanced-deepening/constant-D2/N1000sf10interpol500/D2strength0.5000_sf10_N1000_iter0001_step0005_pars-3.00_0.00_3.00_0.00_0.00_0.00_0.50_bins100_ntau10_interpol500_bw0.30.RDS")
