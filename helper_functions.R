@@ -84,27 +84,28 @@ get_theoretical_D <- function(D, min_x = -5, max_x = 5, interpol_steps = 100) {
 get_D <- function(nr_steps_bif,
                   scenario = c(
                     "2fps-balanced-deepening",
-                    "2fps-balanced-shallowing",
+                    # "2fps-balanced-shallowing",
                     "left-fp-gains-dominance",
                     "right-fp-gains-dominance"
                   )[1],
                   type_D2 = c("constant", "quadratic")[1],
                   strength_D2) {
-  if (scenario == "1fp") {
-    # alphas = 0
-    # betas = 1
-    d13 = 0
-    d12 = 0
-    d11 = seq(3, 1, length.out = nr_steps_bif) # potential is plotted as negPF
-    d10 = 0
-  } else  if (scenario == "2fps-balanced-shallowing") {
-    # alphas = 0 #-.1
-    # betas = seq(2, 0.1, length.out = nr_steps_bif)
-    d13 = seq(-3,-1, length.out = nr_steps_bif)
-    d12 = 0
-    d11 = seq(3, 1, length.out = nr_steps_bif)
-    d10 = 0
-  } else  if (scenario == "2fps-balanced-deepening") {
+  # if (scenario == "1fp") {
+  #   # alphas = 0
+  #   # betas = 1
+  #   d13 = 0
+  #   d12 = 0
+  #   d11 = seq(3, 1, length.out = nr_steps_bif) # potential is plotted as negPF
+  #   d10 = 0
+  # } else  if (scenario == "2fps-balanced-shallowing") {
+  #   # alphas = 0 #-.1
+  #   # betas = seq(2, 0.1, length.out = nr_steps_bif)
+  #   d13 = seq(-3,-1, length.out = nr_steps_bif)
+  #   d12 = 0
+  #   d11 = seq(3, 1, length.out = nr_steps_bif)
+  #   d10 = 0
+  # } else  
+  if (scenario == "2fps-balanced-deepening") {
     # alphas = 0 #-.1
     # betas = rev(seq(2, 0.1, length.out = nr_steps_bif))
     d13 = rev(seq(-3,-1, length.out = nr_steps_bif))
