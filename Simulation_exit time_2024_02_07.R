@@ -37,8 +37,8 @@ graphics.off()
 # Create necessary directories
 filepath_base = dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(filepath_base)
-filepath_figs = file.path(filepath_base, "figs_sim_sf_change") #figs_theoreticalET_scalecheck")
-filepath_est = file.path(filepath_base, "est_sim_sf_change")# "est_theoreticalET_scalecheck")
+filepath_figs = file.path(filepath_base, "figs_sim_check_N500_sf10_50iter") #figs_theoreticalET_scalecheck")
+filepath_est = file.path(filepath_base, "est_sim_check_N500_sf10_50iter")# "est_theoreticalET_scalecheck")
 if (!dir.exists(filepath_figs)) {
   dir.create(filepath_figs, recursive = T)
 }
@@ -68,20 +68,18 @@ source(file.path(filepath_base, "helper_functions.R")) # attention: make sure th
 forloop = tidyr::expand_grid(
   # datagen = "Langevin",
   nr_steps_bif = 5, #length.out for deepening, asymmetry, etc.
-  type_D2 = c("constant"),
+  type_D2 = c("constant", "quadratic"),
   #"quadratic",
-  scenario = c("2fps-balanced-deepening"),
-  # "left-fp-gains-dominance",
-  # "right-fp-gains-dominance"),
+  scenario = c("2fps-balanced-deepening", "left-fp-gains-dominance","right-fp-gains-dominance"),
   strength_D2 = c(.3),
-  sf = 40, #c(10, 100),
-  N = c(200), #c(500, 100000),
-  bins = c(80), #c(30, 40, 100),
+  sf = 10, #c(10, 100),
+  N = 500, #c(500, 100000),
+  bins = 50, #c(30, 40, 100),
   interpol_steps = 100,# c(50, 100, 500),
   ntau = 10, # c(3, 5, 10),
   bw_sd = .3,
   #10000
-  noise_iter = c(1) #c(1:5)
+  noise_iter = c(1:50) #c(1:5)
 ) %>% purrr::transpose() %>% unique()
 
 # Debug
@@ -243,10 +241,10 @@ foreach(for_par = forloop) %do% {
                 out[unlist(lapply(out, class)) == "function"] = NULL # Remove functions
                 saveRDS(out, paths$filepath_out)
               }
-              out = readRDS(paths$filepath_out)
-              print("Plot results")
-              new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
-              graphics.off()
+              # out = readRDS(paths$filepath_out)
+              # print("Plot results")
+              # new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
+              # graphics.off()
             }
   })
 }
