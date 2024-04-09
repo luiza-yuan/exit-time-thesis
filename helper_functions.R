@@ -428,66 +428,66 @@ est_D_Carp <- function(Ux,
 }
 
 
-# apply_DDbintau <- function(Ux,
-#                            Tstep,
-#                            # sf, # added to check scaling
-#                            ntau = 10,
-#                            bins,
-#                            bw_sd = 0.3) {
-#   # Step 3 Carpenter 2022
-# 
-#   # Set up for binning method
-#   bw <-
-#     bw_sd * sd(Ux)  # try bandwidth between 0.1*sd and 0.5*sd (according to Carpenter, 2022)
-# 
-#   # # Note that the bw also cuts of the beginning and end of the x vector. Make sure the bandwidth is not so large that there is no data left:
-#   # while ((bins / 10 * bw) > abs(diff(range(Ux)))) {
-#   #   bw_sd = bw_sd - .05
-#   #   bw <- bw_sd * sd(Ux)  # try between 0.1*sd and 0.5*sd
-#   # }
-#   DDout = DDbins(Ux, bw, ntau, bins)
-# 
-#   # Extract smoothed output
-#   D1s = DDout[[1]]
-#   D2s = DDout[[2]]
-#   # sigmas = DDout[[3]] # = sqrt(2*D2)
-#   bin.mid = DDout[[4]]
-# 
-#   # Remove NAs - locations in either the drift or diffusion function where they couldn't be estimated
-#   D1s_idx = purrr::map(D1s, function(x) {
-#     which(!is.na(x))
-#   })
-#   D2s_idx = purrr::map(D2s, function(x) {
-#     which(!is.na(x))
-#   })
-#   idx = sort(dplyr::intersect(
-#     dplyr::intersect(D1s_idx$x, D1s_idx$y),
-#     dplyr::intersect(D2s_idx$x, D2s_idx$y)
-#   ))
-#   D1s = list(x = D1s$x[idx],
-#              # y = (D1s$y[idx])*sf, # changed: multiply by sf for scaling
-#              y = D1s$y[idx]) 
-#   D2s = list(x = D2s$x[idx],
-#              # y = ((D2s$y[idx])*sf)/2, # changed: multiply by sf and divide by 2 for scaling
-#              y = D2s$y[idx]) 
-#   bin.mid = bin.mid[idx]
-# 
-#   # Find equilibria - where D1 crosses x=0
-#   sdrift = sign(D1s$y)
-#   dsdrift = c(0,-diff(sdrift))
-#   ixeq = which(dsdrift != 0)  # indices of the equilibria
-#   xeq = D1s$x[ixeq]
-# 
-#   print('Equilibria from D1 estimate', quote = F)
-#   print(xeq[order(xeq)], quote = F)
-#   return(list(
-#     D1s = D1s,
-#     D2s = D2s,
-#     bin.mid = bin.mid,
-#     xeq = xeq,
-#     ixeq = ixeq
-#   ))
-# }
+apply_DDbintau <- function(Ux,
+                           Tstep,
+                           # sf, # added to check scaling
+                           ntau = 10,
+                           bins,
+                           bw_sd = 0.3) {
+  # Step 3 Carpenter 2022
+
+  # Set up for binning method
+  bw <-
+    bw_sd * sd(Ux)  # try bandwidth between 0.1*sd and 0.5*sd (according to Carpenter, 2022)
+
+  # # Note that the bw also cuts of the beginning and end of the x vector. Make sure the bandwidth is not so large that there is no data left:
+  # while ((bins / 10 * bw) > abs(diff(range(Ux)))) {
+  #   bw_sd = bw_sd - .05
+  #   bw <- bw_sd * sd(Ux)  # try between 0.1*sd and 0.5*sd
+  # }
+  DDout = DDbins(Ux, bw, ntau, bins)
+
+  # Extract smoothed output
+  D1s = DDout[[1]]
+  D2s = DDout[[2]]
+  # sigmas = DDout[[3]] # = sqrt(2*D2)
+  bin.mid = DDout[[4]]
+
+  # Remove NAs - locations in either the drift or diffusion function where they couldn't be estimated
+  D1s_idx = purrr::map(D1s, function(x) {
+    which(!is.na(x))
+  })
+  D2s_idx = purrr::map(D2s, function(x) {
+    which(!is.na(x))
+  })
+  idx = sort(dplyr::intersect(
+    dplyr::intersect(D1s_idx$x, D1s_idx$y),
+    dplyr::intersect(D2s_idx$x, D2s_idx$y)
+  ))
+  D1s = list(x = D1s$x[idx],
+             # y = (D1s$y[idx])*sf, # changed: multiply by sf for scaling
+             y = D1s$y[idx])
+  D2s = list(x = D2s$x[idx],
+             # y = ((D2s$y[idx])*sf)/2, # changed: multiply by sf and divide by 2 for scaling
+             y = D2s$y[idx])
+  bin.mid = bin.mid[idx]
+
+  # Find equilibria - where D1 crosses x=0
+  sdrift = sign(D1s$y)
+  dsdrift = c(0,-diff(sdrift))
+  ixeq = which(dsdrift != 0)  # indices of the equilibria
+  xeq = D1s$x[ixeq]
+
+  print('Equilibria from D1 estimate', quote = F)
+  print(xeq[order(xeq)], quote = F)
+  return(list(
+    D1s = D1s,
+    D2s = D2s,
+    bin.mid = bin.mid,
+    xeq = xeq,
+    ixeq = ixeq
+  ))
+}
 
 # Estimate drift and diffusion using Langevin sourcecode (translated from C++ code)
 Langevin1D_sourcecode <- function(data, bins, steps, sf, bin_min, reqThreads) {
