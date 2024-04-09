@@ -28,7 +28,7 @@
 #################################
 
 ######### Modifications by Luiza Yuan, 20.02.2024 #########
-# (1) parallel processing (still needs edits to plot when mean exit time is not estimated)
+# (1) parallel processing 
 #################################
 
 rm(list = ls())
@@ -37,8 +37,8 @@ graphics.off()
 # Create necessary directories
 filepath_base = dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(filepath_base)
-filepath_figs = file.path(filepath_base, "figs_sim_check_N500_sf10_50iter") #figs_theoreticalET_scalecheck")
-filepath_est = file.path(filepath_base, "est_sim_check_N500_sf10_50iter")# "est_theoreticalET_scalecheck")
+filepath_figs = file.path(filepath_base, "figs_scale_check") #figs_theoreticalET_scalecheck")
+filepath_est = file.path(filepath_base, "est_scale_check")# "est_theoreticalET_scalecheck")
 if (!dir.exists(filepath_figs)) {
   dir.create(filepath_figs, recursive = T)
 }
@@ -68,9 +68,10 @@ source(file.path(filepath_base, "helper_functions.R")) # attention: make sure th
 forloop = tidyr::expand_grid(
   # datagen = "Langevin",
   nr_steps_bif = 5, #length.out for deepening, asymmetry, etc.
-  type_D2 = c("constant", "quadratic"),
+  type_D2 = c("constant"),
   #"quadratic",
-  scenario = c("2fps-balanced-deepening", "left-fp-gains-dominance","right-fp-gains-dominance"),
+  scenario = c("2fps-balanced-deepening"),
+               # , "left-fp-gains-dominance","right-fp-gains-dominance"),
   strength_D2 = c(.3),
   sf = 10, #c(10, 100),
   N = 500, #c(500, 100000),
@@ -79,7 +80,8 @@ forloop = tidyr::expand_grid(
   ntau = 10, # c(3, 5, 10),
   bw_sd = .3,
   #10000
-  noise_iter = c(1:50) #c(1:5)
+  noise_iter = c(3), #c(1:5)
+  # noise_iter_concat_times = 5
 ) %>% purrr::transpose() %>% unique()
 
 # Debug
@@ -99,6 +101,7 @@ sf = for_par$sf
 N = for_par$N
 noise_iter = for_par$noise_iter
 add_to_x = .5
+# noise_iter_concat_times = for_par$noise_iter_concat_times
 
 # # Set up cluster
 # cl <- parallel::makeCluster(detectCores() - 1, type = "PSOCK")
@@ -183,7 +186,7 @@ foreach(for_par = forloop) %do% {
             D = Ds,
             # .packages = c("ggplot2"),
             # .export = c("interpol_steps"),
-            .export = c(functions)) %dopar% {
+            .export = c(functions)) %do% {
               #print("step 2")
               
               # Setup and create filepaths
@@ -218,6 +221,18 @@ foreach(for_par = forloop) %do% {
                   sf = sf,
                   noise_iter = noise_iter
                 )))
+                
+                # Generate concatenated timeseries
+                # Ux <- NULL
+                # for (i in 0:(noise_iter_concat_times-1)){
+                #   Ux_iter <- do.call(generate_Langevin, utils::modifyList(D, list(
+                #     N = N/noise_iter_concat_times,
+                #     sf = sf,
+                #     noise_iter = noise_iter + i
+                #   )))
+                #   # print(noise_iter + i)
+                #   Ux <- c(Ux, Ux_iter)
+                # }
 
                 # Get stability of fixed points
                 stabs = get_stability(D)
@@ -239,20 +254,30 @@ foreach(for_par = forloop) %do% {
                 # Save results
                 out = c(as.list(environment()))  # Gather environment
                 out[unlist(lapply(out, class)) == "function"] = NULL # Remove functions
-                saveRDS(out, paths$filepath_out)
+                # saveRDS(out, paths$filepath_out)
+                
+                saveRDS(out, paste0("concat_", paths$filepath_out))
               }
-              # out = readRDS(paths$filepath_out)
-              # print("Plot results")
-              # new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
-              # graphics.off()
+              out = readRDS(paths$filepath_out)
+              print("Plot results")
+              new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
+              graphics.off()
             }
   })
 }
 parallel::stopCluster(cl) # End cluster
 
-### attempt Bootstrap 
-boot::tsboot(attempt$Ux)
-?tsboot()
+###Bootstrap 
+# boot::tsboot(attempt$Ux)
+# ?tsboot()
+example <-
+  readRDS(
+    "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesis/est_scale_check/2fps-balanced-deepening/constant-D2/D2strength0.3000_sf20_N200_iter0001_step0001_pars-1.00_0.00_1.00_0.00_0.00_0.00_0.30_bins40_ntau10_interpol100_bw0.30.RDS"
+  )
+
+carpenter_D1 <- as.numeric(example$est_Carp$compl_df[example$est_Carp$compl_df$variable == "drift" & example$est_Carp$compl_df$source == "Estimated",]$value)
+carpenter_x <- as.numeric(example$est_Carp$compl_df[example$est_Carp$compl_df$variable == "drift" & example$est_Carp$compl_df$source == "Estimated",]$x)
+
 
 ### Assumption checks ###
 # Check stationary

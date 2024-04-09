@@ -46,7 +46,7 @@ poly3 <-
   }
 
 # Derive theoretical drift, diffusion, and potential analytically
-get_theoretical_D <- function(D, min_x = -5, max_x = 5, interpol_steps = 100) {
+get_theoretical_D <- function(D, min_x = -5, max_x = 5, interpol_steps) {
   with(D, {
     # Potential function from drift coefficients
     # drift = d10 + d11*x + d12*x^2 + d13*x^3 = negative derivative of potential
@@ -82,13 +82,15 @@ get_theoretical_D <- function(D, min_x = -5, max_x = 5, interpol_steps = 100) {
 }
 
 get_D <- function(nr_steps_bif,
-                  scenario = c(
-                    "2fps-balanced-deepening",
-                    # "2fps-balanced-shallowing",
-                    "left-fp-gains-dominance",
-                    "right-fp-gains-dominance"
-                  )[1],
-                  type_D2 = c("constant", "quadratic")[1],
+                  scenario, 
+                  # = c(
+                  #   "2fps-balanced-deepening",
+                  #   # "2fps-balanced-shallowing",
+                  #   "left-fp-gains-dominance",
+                  #   "right-fp-gains-dominance"
+                  # )[1],
+                  type_D2,
+                  # = c("constant", "quadratic")[1],
                   strength_D2) {
   # if (scenario == "1fp") {
   #   # alphas = 0
@@ -298,7 +300,8 @@ est_D_Carp <- function(Ux,
                        ntau,
                        bins,
                        bw_sd,
-                       interpol_steps, add_to_x = .5) {
+                       interpol_steps, 
+                       add_to_x = .5) {
   # Estimate drift and diffusion
   DD = apply_DDbintau(
     Ux = Ux,
@@ -327,7 +330,7 @@ est_D_Carp <- function(Ux,
     xvec = xvec
   )
 
-  Theoretical_df = get_theoretical_D(D, min_x = min(xvec), max_x = max(xvec), interpol_steps = length(xvec)) # KCE
+  Theoretical_df = get_theoretical_D(D, min_x = min(xvec), max_x = max(xvec), interpol_steps = interpol_steps) # KCE
   
   # Only if there are two stable equilibria on the outside and on unstable equilibrium on the inside, compute exit time
   # if (identical(stabs$stab_fps, c("stable", "unstable", "stable"))) {
@@ -425,67 +428,166 @@ est_D_Carp <- function(Ux,
 }
 
 
-apply_DDbintau <- function(Ux,
-                           Tstep,
-                           # sf, # added to check scaling
-                           ntau = 10,
-                           bins,
-                           bw_sd = 0.3) {
-  # Step 3 Carpenter 2022
+# apply_DDbintau <- function(Ux,
+#                            Tstep,
+#                            # sf, # added to check scaling
+#                            ntau = 10,
+#                            bins,
+#                            bw_sd = 0.3) {
+#   # Step 3 Carpenter 2022
+# 
+#   # Set up for binning method
+#   bw <-
+#     bw_sd * sd(Ux)  # try bandwidth between 0.1*sd and 0.5*sd (according to Carpenter, 2022)
+# 
+#   # # Note that the bw also cuts of the beginning and end of the x vector. Make sure the bandwidth is not so large that there is no data left:
+#   # while ((bins / 10 * bw) > abs(diff(range(Ux)))) {
+#   #   bw_sd = bw_sd - .05
+#   #   bw <- bw_sd * sd(Ux)  # try between 0.1*sd and 0.5*sd
+#   # }
+#   DDout = DDbins(Ux, bw, ntau, bins)
+# 
+#   # Extract smoothed output
+#   D1s = DDout[[1]]
+#   D2s = DDout[[2]]
+#   # sigmas = DDout[[3]] # = sqrt(2*D2)
+#   bin.mid = DDout[[4]]
+# 
+#   # Remove NAs - locations in either the drift or diffusion function where they couldn't be estimated
+#   D1s_idx = purrr::map(D1s, function(x) {
+#     which(!is.na(x))
+#   })
+#   D2s_idx = purrr::map(D2s, function(x) {
+#     which(!is.na(x))
+#   })
+#   idx = sort(dplyr::intersect(
+#     dplyr::intersect(D1s_idx$x, D1s_idx$y),
+#     dplyr::intersect(D2s_idx$x, D2s_idx$y)
+#   ))
+#   D1s = list(x = D1s$x[idx],
+#              # y = (D1s$y[idx])*sf, # changed: multiply by sf for scaling
+#              y = D1s$y[idx]) 
+#   D2s = list(x = D2s$x[idx],
+#              # y = ((D2s$y[idx])*sf)/2, # changed: multiply by sf and divide by 2 for scaling
+#              y = D2s$y[idx]) 
+#   bin.mid = bin.mid[idx]
+# 
+#   # Find equilibria - where D1 crosses x=0
+#   sdrift = sign(D1s$y)
+#   dsdrift = c(0,-diff(sdrift))
+#   ixeq = which(dsdrift != 0)  # indices of the equilibria
+#   xeq = D1s$x[ixeq]
+# 
+#   print('Equilibria from D1 estimate', quote = F)
+#   print(xeq[order(xeq)], quote = F)
+#   return(list(
+#     D1s = D1s,
+#     D2s = D2s,
+#     bin.mid = bin.mid,
+#     xeq = xeq,
+#     ixeq = ixeq
+#   ))
+# }
 
-  # Set up for binning method
-  bw <-
-    bw_sd * sd(Ux)  # try bandwidth between 0.1*sd and 0.5*sd (according to Carpenter, 2022)
-
-  # # Note that the bw also cuts of the beginning and end of the x vector. Make sure the bandwidth is not so large that there is no data left:
-  # while ((bins / 10 * bw) > abs(diff(range(Ux)))) {
-  #   bw_sd = bw_sd - .05
-  #   bw <- bw_sd * sd(Ux)  # try between 0.1*sd and 0.5*sd
+# Estimate drift and diffusion using Langevin sourcecode (translated from C++ code)
+Langevin1D_sourcecode <- function(data, bins, steps, sf, bin_min, reqThreads) {
+  # if (!exists("omp_get_num_procs")) {
+  #   stop("OpenMP is not available.")
   # }
-  DDout = DDbins(Ux, bw, ntau, bins)
-
-  # Extract smoothed output
-  D1s = DDout[[1]]
-  D2s = DDout[[2]]
-  # sigmas = DDout[[3]] # = sqrt(2*D2)
-  bin.mid = DDout[[4]]
-
-  # Remove NAs - locations in either the drift or diffusion function where they couldn't be estimated
-  D1s_idx = purrr::map(D1s, function(x) {
-    which(!is.na(x))
-  })
-  D2s_idx = purrr::map(D2s, function(x) {
-    which(!is.na(x))
-  })
-  idx = sort(dplyr::intersect(
-    dplyr::intersect(D1s_idx$x, D1s_idx$y),
-    dplyr::intersect(D2s_idx$x, D2s_idx$y)
-  ))
-  D1s = list(x = D1s$x[idx],
-             # y = (D1s$y[idx])*sf, # changed: multiply by sf for scaling
-             y = D1s$y[idx]) 
-  D2s = list(x = D2s$x[idx],
-             # y = ((D2s$y[idx])*sf)/2, # changed: multiply by sf and divide by 2 for scaling
-             y = D2s$y[idx]) 
-  bin.mid = bin.mid[idx]
-
-  # Find equilibria - where D1 crosses x=0
-  sdrift = sign(D1s$y)
-  dsdrift = c(0,-diff(sdrift))
-  ixeq = which(dsdrift != 0)  # indices of the equilibria
-  xeq = D1s$x[ixeq]
-
-  print('Equilibria from D1 estimate', quote = F)
-  print(xeq[order(xeq)], quote = F)
-  return(list(
-    D1s = D1s,
-    D2s = D2s,
-    bin.mid = bin.mid,
-    xeq = xeq,
-    ixeq = ixeq
-  ))
+  # 
+  # if (!is.numeric(reqThreads)) {
+  #   stop("reqThreads should be numeric.")
+  # }
+  
+  haveCores <- as.integer(Sys.getenv("OMP_NUM_THREADS", 1))
+  if (reqThreads <= 0 || reqThreads > haveCores) {
+    reqThreads <- haveCores
+  }
+  
+  U <- seq(min(data), max(data), length.out = bins + 1)
+  nsteps <- length(steps)
+  
+  M1 <- matrix(NA, nrow = bins, ncol = nsteps)
+  eM1 <- matrix(NA, nrow = bins, ncol = nsteps)
+  M2 <- matrix(NA, nrow = bins, ncol = nsteps)
+  eM2 <- matrix(NA, nrow = bins, ncol = nsteps)
+  M4 <- matrix(NA, nrow = bins, ncol = nsteps)
+  D1 <- numeric(bins)
+  eD1 <- numeric(bins)
+  D2 <- numeric(bins)
+  eD2 <- numeric(bins)
+  D4 <- numeric(bins)
+  dens <- numeric(bins)
+  mean_bin <- numeric(bins)
+  
+  for (i in 1:bins) {
+    sum_m1 <- numeric(nsteps)
+    sum_m2 <- numeric(nsteps)
+    sum_m4 <- numeric(nsteps)
+    len_step <- numeric(nsteps)
+    len_bin <- 0
+    
+    for (n in 1:(length(data) - max(steps))) {
+      if (data[n] >= U[i] && data[n] < U[i + 1] && is.finite(data[n])) {
+        for (s in 1:nsteps) {
+          if (is.finite(data[n + steps[s]])) {
+            inc <- data[n + steps[s]] - data[n]
+            sum_m1[s] <- sum_m1[s] + inc
+            sum_m2[s] <- sum_m2[s] + inc^2
+            sum_m4[s] <- sum_m4[s] + inc^4
+            len_step[s] <- len_step[s] + 1
+          }
+        }
+        mean_bin[i] <- mean_bin[i] + data[n]
+        len_bin <- len_bin + 1
+      }
+    }
+    
+    mean_bin[i] <- mean_bin[i] / len_bin
+    dens[i] <- max(len_step)
+    
+    if (len_bin >= bin_min) {
+      M1[i, ] <- sum_m1 / len_step
+      M2[i, ] <- sum_m2 / len_step
+      M4[i, ] <- sum_m4 / len_step
+      
+      eM1[i, ] <- sqrt((M2[i, ] - M1[i, ]^2) / len_step)
+      eM2[i, ] <- sqrt((M4[i, ] - M2[i, ]^2) / len_step)
+      
+      coef <- lm(M1[i, ] ~ steps, weights = 1 / eM1[i, ])$coefficients
+      D1[i] <- sf * coef[2]
+      
+      y <- M2[i, ] - (coef[2] * steps)^2
+      coef <- lm(y ~ steps, weights = 1 / eM2[i, ])$coefficients
+      D2[i] <- sf * coef[2] / 2
+      
+      coef <- lm(M4[i, ] ~ steps)$coefficients
+      D4[i] <- sf * coef[2] / 24
+      
+      eD1[i] <- sqrt((2 * sf * D2[i] - D1[i]^2) / dens[i])
+      eD2[i] <- sqrt((2 * sf * D4[i] - D2[i]^2) / dens[i])
+    }
+  }
+  
+  ret <- list(
+    D1 = D1,
+    eD1 = eD1,
+    D2 = D2,
+    eD2 = eD2,
+    D4 = D4,
+    mean_bin = mean_bin,
+    density = dens,
+    M1 = M1,
+    eM1 = eM1,
+    M2 = M2,
+    eM2 = eM2,
+    M4 = M4,
+    U = U
+  )
+  
+  # class(ret) <- "Langevin"
+  return(ret)
 }
-
 
 # Interpolate with approxfun() for D1 and D2
 D1fun = function(x, D1s) {
@@ -509,7 +611,6 @@ D2fun = function(x, D2s)  {
   )$y
   return(yhat)
 }
-
 
 
 get_effective_potential = function(D1s,
