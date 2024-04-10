@@ -431,9 +431,9 @@ est_D_Carp <- function(Ux,
 apply_DDbintau <- function(Ux,
                            Tstep,
                            # sf, # added to check scaling
-                           ntau = 10,
+                           ntau,
                            bins,
-                           bw_sd = 0.3) {
+                           bw_sd) {
   # Step 3 Carpenter 2022
 
   # Set up for binning method
@@ -487,106 +487,6 @@ apply_DDbintau <- function(Ux,
     xeq = xeq,
     ixeq = ixeq
   ))
-}
-
-# Estimate drift and diffusion using Langevin sourcecode (translated from C++ code)
-Langevin1D_sourcecode <- function(data, bins, steps, sf, bin_min, reqThreads) {
-  # if (!exists("omp_get_num_procs")) {
-  #   stop("OpenMP is not available.")
-  # }
-  # 
-  # if (!is.numeric(reqThreads)) {
-  #   stop("reqThreads should be numeric.")
-  # }
-  
-  haveCores <- as.integer(Sys.getenv("OMP_NUM_THREADS", 1))
-  if (reqThreads <= 0 || reqThreads > haveCores) {
-    reqThreads <- haveCores
-  }
-  
-  U <- seq(min(data), max(data), length.out = bins + 1)
-  nsteps <- length(steps)
-  
-  M1 <- matrix(NA, nrow = bins, ncol = nsteps)
-  eM1 <- matrix(NA, nrow = bins, ncol = nsteps)
-  M2 <- matrix(NA, nrow = bins, ncol = nsteps)
-  eM2 <- matrix(NA, nrow = bins, ncol = nsteps)
-  M4 <- matrix(NA, nrow = bins, ncol = nsteps)
-  D1 <- numeric(bins)
-  eD1 <- numeric(bins)
-  D2 <- numeric(bins)
-  eD2 <- numeric(bins)
-  D4 <- numeric(bins)
-  dens <- numeric(bins)
-  mean_bin <- numeric(bins)
-  
-  for (i in 1:bins) {
-    sum_m1 <- numeric(nsteps)
-    sum_m2 <- numeric(nsteps)
-    sum_m4 <- numeric(nsteps)
-    len_step <- numeric(nsteps)
-    len_bin <- 0
-    
-    for (n in 1:(length(data) - max(steps))) {
-      if (data[n] >= U[i] && data[n] < U[i + 1] && is.finite(data[n])) {
-        for (s in 1:nsteps) {
-          if (is.finite(data[n + steps[s]])) {
-            inc <- data[n + steps[s]] - data[n]
-            sum_m1[s] <- sum_m1[s] + inc
-            sum_m2[s] <- sum_m2[s] + inc^2
-            sum_m4[s] <- sum_m4[s] + inc^4
-            len_step[s] <- len_step[s] + 1
-          }
-        }
-        mean_bin[i] <- mean_bin[i] + data[n]
-        len_bin <- len_bin + 1
-      }
-    }
-    
-    mean_bin[i] <- mean_bin[i] / len_bin
-    dens[i] <- max(len_step)
-    
-    if (len_bin >= bin_min) {
-      M1[i, ] <- sum_m1 / len_step
-      M2[i, ] <- sum_m2 / len_step
-      M4[i, ] <- sum_m4 / len_step
-      
-      eM1[i, ] <- sqrt((M2[i, ] - M1[i, ]^2) / len_step)
-      eM2[i, ] <- sqrt((M4[i, ] - M2[i, ]^2) / len_step)
-      
-      coef <- lm(M1[i, ] ~ steps, weights = 1 / eM1[i, ])$coefficients
-      D1[i] <- sf * coef[2]
-      
-      y <- M2[i, ] - (coef[2] * steps)^2
-      coef <- lm(y ~ steps, weights = 1 / eM2[i, ])$coefficients
-      D2[i] <- sf * coef[2] / 2
-      
-      coef <- lm(M4[i, ] ~ steps)$coefficients
-      D4[i] <- sf * coef[2] / 24
-      
-      eD1[i] <- sqrt((2 * sf * D2[i] - D1[i]^2) / dens[i])
-      eD2[i] <- sqrt((2 * sf * D4[i] - D2[i]^2) / dens[i])
-    }
-  }
-  
-  ret <- list(
-    D1 = D1,
-    eD1 = eD1,
-    D2 = D2,
-    eD2 = eD2,
-    D4 = D4,
-    mean_bin = mean_bin,
-    density = dens,
-    M1 = M1,
-    eM1 = eM1,
-    M2 = M2,
-    eM2 = eM2,
-    M4 = M4,
-    U = U
-  )
-  
-  # class(ret) <- "Langevin"
-  return(ret)
 }
 
 # Interpolate with approxfun() for D1 and D2
