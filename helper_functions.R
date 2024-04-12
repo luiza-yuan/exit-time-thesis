@@ -380,7 +380,8 @@ est_D_Carp <- function(Ux,
 
   # Format results
   compl_df = rbind(Theoretical_df %>% mutate(source = "Theoretical", err = NA),
-        rbind(est_df_Carp,
+        rbind(
+          # est_df_Carp,
                 Pot_df) %>% mutate(source = "Estimated"),
         TheoreticalExitTime$ET_df %>% mutate(source = "Theoretical"),
         EstimatedExitTime$ET_df %>% mutate(source = "Estimated")
@@ -396,6 +397,7 @@ est_D_Carp <- function(Ux,
   
   return(
     list(
+      est_df_Carp = est_df_Carp, 
       compl_df = compl_df,
       fp_df = fp_df,
       xeq = DD$xeq,
