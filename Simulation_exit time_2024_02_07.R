@@ -37,8 +37,8 @@ graphics.off()
 # Create necessary directories
 filepath_base = dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(filepath_base)
-filepath_figs = file.path(filepath_base, "figs_scale_check") #figs_theoreticalET_scalecheck")
-filepath_est = file.path(filepath_base, "est_scale_check")# "est_theoreticalET_scalecheck")
+filepath_figs = file.path(filepath_base, "Rinn_figs_scale_check") #figs_theoreticalET_scalecheck")
+filepath_est = file.path(filepath_base, "Rinn_est_scale_check")# "est_theoreticalET_scalecheck")
 if (!dir.exists(filepath_figs)) {
   dir.create(filepath_figs, recursive = T)
 }
@@ -62,7 +62,7 @@ library(latex2exp)
 
 # source("ExitTime_BinMethod_PeterLakeExample-main/DDbintau.R")
 source(file.path(dirname(filepath_base), "ExitTime_BinMethod_PeterLakeExample-main/DDbintau.R"))
-source(file.path(filepath_base, "helper_functions.R")) # attention: make sure that it is the version updated 20.03.2024
+source(file.path(filepath_base, "helper_functions_Rinn.R")) # attention: make sure that it is the version updated 20.03.2024
 
 # Choose parameters to loop through
 forloop = tidyr::expand_grid(
@@ -72,17 +72,27 @@ forloop = tidyr::expand_grid(
   #"quadratic",
   scenario = c("2fps-balanced-deepening"),
                # , "left-fp-gains-dominance","right-fp-gains-dominance"),
-  strength_D2 = c(.3),
-  sf = 10, #c(10, 100),
-  N = 500, #c(500, 100000),
-  bins = 50, #c(30, 40, 100),
-  interpol_steps = 100,# c(50, 100, 500),
-  ntau = 10, # c(3, 5, 10),
+  strength_D2 = c(.5),
+  sf = c(10), #c(10, 100),
+  N = c(200, 500, 1000), #c(500, 100000),
+  bins = c(20, 50, 100), #c(30, 40, 100),
+  interpol_steps = 50,# c(50, 100, 500),
+  ntau = c(3, 5, 10), # c(3, 5, 10),
   bw_sd = .3,
   #10000
   noise_iter = c(3), #c(1:5)
   # noise_iter_concat_times = 5
 ) %>% purrr::transpose() %>% unique()
+
+# Check each item in the forloop list and keep only the ones where N*sf = bins*100
+filtered_forloop <- list()
+for (i in seq_along(forloop)) {
+  if (forloop[[i]]$N * forloop[[i]]$sf == forloop[[i]]$bins * 100) {
+    filtered_forloop[[i]] <- forloop[[i]]
+  }
+}
+# Remove NULL elements from the list
+filtered_forloop <- filtered_forloop[!sapply(filtered_forloop, is.null)]
 
 # Debug
 #datagen = "Langevin"
@@ -148,10 +158,12 @@ getDoParWorkers() #check how many workers 'foreach' is going to use
 #   )
 functions <-
   c(
-    "apply_DDbintau",
+    # "apply_DDbintau",
+    "Langevin1D_adapted",
+    "apply_Langevin1D_adapted",
     "D1fun",
     "D2fun",
-    "DDbins",
+    # "DDbins",
     "est_D_Carp",
     "finner",
     "generate_Langevin",
@@ -183,10 +195,10 @@ foreach(for_par = forloop) %do% {
 
     # Loop through steps in bifurcation parameter
     foreach(step_idx = 1:nr_steps_bif,
-            D = Ds,
+            D = Ds[[2]],
             # .packages = c("ggplot2"),
             # .export = c("interpol_steps"),
-            .export = c(functions)) %do% {
+            .export = c(functions)) %dopar% {
               #print("step 2")
               
               # Setup and create filepaths
@@ -256,7 +268,7 @@ foreach(for_par = forloop) %do% {
                 out[unlist(lapply(out, class)) == "function"] = NULL # Remove functions
                 # saveRDS(out, paths$filepath_out)
                 
-                saveRDS(out, paste0("concat_", paths$filepath_out))
+                saveRDS(out, paste0(paths$filepath_out))
               }
               out = readRDS(paths$filepath_out)
               print("Plot results")
@@ -266,6 +278,30 @@ foreach(for_par = forloop) %do% {
   })
 }
 parallel::stopCluster(cl) # End cluster
+
+### checking helper_functions_Rinn
+# D1 and D2 ("raw") estimated from Langevin1D_adapted
+out$est_Carp$est_df_Rinn[out$est_Carp$est_df_Rinn$variable == "D1",]
+
+out$est_Carp$compl_df[out$est_Carp$compl_df$variable == "drift",]
+out_D1 <- as.numeric(out$est_Carp$compl_df[out$est_Carp$compl_df$variable == "drift" & out$est_Carp$compl_df$source == "Estimated",]$value)
+out_D1x <- out$est_Carp$compl_df[out$est_Carp$compl_df$variable == "drift" & out$est_Carp$compl_df$source == "Estimated",]$x
+
+out_D1_theo <- as.numeric(out$est_Carp$compl_df[out$est_Carp$compl_df$variable == "drift" & out$est_Carp$compl_df$source == "Theoretical",]$value)
+out_D1x_theo <- out$est_Carp$compl_df[out$est_Carp$compl_df$variable == "drift" & out$est_Carp$compl_df$source == "Theoretical",]$x
+
+plot(out_D1x, out_D1)
+points(out_D1x_theo,out_D1_theo)
+
+plot(xvec, drift)
+points(DD$D1s$x, DD$D1s$y, col = "red")
+points(DD$D1s$x, DD$D1s$x - DD$D1s$x^3, col = "blue")
+
+
+
+plot(xvec, negPF)
+plot(Theoretical_df$x[Theoretical_df$variable == "potential"], Theoretical_df$value[Theoretical_df$variable == "potential"])
+
 
 ###Bootstrap 
 # boot::tsboot(attempt$Ux)
