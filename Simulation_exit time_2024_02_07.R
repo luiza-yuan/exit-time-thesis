@@ -72,12 +72,12 @@ forloop = tidyr::expand_grid(
   #"quadratic",
   scenario = c("2fps-balanced-deepening"),
                # , "left-fp-gains-dominance","right-fp-gains-dominance"),
-  strength_D2 = c(.5),
+  strength_D2 = c(.3, .5),
   sf = c(10), #c(10, 100),
-  N = c(200, 500, 1000), #c(500, 100000),
-  bins = c(20, 50, 100), #c(30, 40, 100),
+  N = c(400), #c(500, 100000),
+  bins = c(40), #c(30, 40, 100),
   interpol_steps = 50,# c(50, 100, 500),
-  ntau = c(3, 5, 10), # c(3, 5, 10),
+  ntau = c(3), # c(3, 5, 10),
   bw_sd = .3,
   #10000
   noise_iter = c(3), #c(1:5)
@@ -182,7 +182,7 @@ functions <-
   )
 
 # Loop through scenarios
-foreach(for_par = forloop) %do% {
+foreach(for_par = filtered_forloop) %do% {
   with(for_par, {
     print(as.data.frame(for_par))
     #print("step 1")
@@ -195,7 +195,7 @@ foreach(for_par = forloop) %do% {
 
     # Loop through steps in bifurcation parameter
     foreach(step_idx = 1:nr_steps_bif,
-            D = Ds[[2]],
+            D = Ds,
             # .packages = c("ggplot2"),
             # .export = c("interpol_steps"),
             .export = c(functions)) %dopar% {
@@ -277,7 +277,7 @@ foreach(for_par = forloop) %do% {
             }
   })
 }
-parallel::stopCluster(cl) # End cluster
+parallel::stopCluster(cl) # End cluster  
 
 ### checking helper_functions_Rinn
 # D1 and D2 ("raw") estimated from Langevin1D_adapted
@@ -297,23 +297,106 @@ plot(xvec, drift)
 points(DD$D1s$x, DD$D1s$y, col = "red")
 points(DD$D1s$x, DD$D1s$x - DD$D1s$x^3, col = "blue")
 
-
-
 plot(xvec, negPF)
 plot(Theoretical_df$x[Theoretical_df$variable == "potential"], Theoretical_df$value[Theoretical_df$variable == "potential"])
 
 
 ###Bootstrap 
-# boot::tsboot(attempt$Ux)
-# ?tsboot()
+# load example data
 example <-
   readRDS(
-    "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesis/est_scale_check/2fps-balanced-deepening/constant-D2/D2strength0.3000_sf20_N200_iter0001_step0001_pars-1.00_0.00_1.00_0.00_0.00_0.00_0.30_bins40_ntau10_interpol100_bw0.30.RDS"
+    "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesis/Rinn_est_scale_check/2fps-balanced-deepening/constant-D2/D2strength0.3000_sf10_N200_iter0003_step0002_pars-1.50_0.00_1.50_0.00_0.00_0.00_0.30_bins20_ntau3_interpol50_bw0.30.RDS"
   )
 
-carpenter_D1 <- as.numeric(example$est_Carp$compl_df[example$est_Carp$compl_df$variable == "drift" & example$est_Carp$compl_df$source == "Estimated",]$value)
-carpenter_x <- as.numeric(example$est_Carp$compl_df[example$est_Carp$compl_df$variable == "drift" & example$est_Carp$compl_df$source == "Estimated",]$x)
+# Fit polynomials to the estimated drift and diffusion coefficients
+bootstrap_est_D <- function(D1s, D2s, eD1, eD2){
+  # remove NA's (need to adjust this in helper functions? 
+  eD1 <- eD1[!is.na(eD1)]
+  eD2 <- eD2[!is.na(eD2)]
+  
+  estD1 <- coef(lm(D1s$y ~ D1s$x + I(D1s$x^2) + I(D1s$x^3), weights = 1/eD1)) # specify only x and x^3?
+  estD2 <- coef(lm(D2s$y ~ D2s$x+ I(D2s$x^2), weights = 1/eD2)) # depends on type of noise?
+  
+  return(list(
+    d13 = estD1[4],
+    d12 = estD1[3],
+    d11 = estD1[2],
+    d10 = estD1[1],
+    d22 = estD2[3],
+    d21 = estD2[2],
+    d20 = estD2[1]
+  ))
+}
 
+bootDD_example <- bootstrap_est_D(example$est_Carp$DD$D1s, example$est_Carp$DD$D2s, example$est_Carp$DD$DDLangout$eD1, example$est_Carp$DD$DDLangout$eD2)
+
+# Generate 5 time series from the reconstructed coefficients
+bootstrap_Lang <- function(bootstrap_n, bootstrapDDs, N, sf, ntau, bins, bw_sd, interpol_steps){
+  boot_est_Carp <- list()
+  for(i in 1:bootstrap_n){
+    rec_x <-
+      timeseries1D(
+        N = 1000,
+        d10 = bootstrapDDs$d10,
+        d11 = bootstrapDDs$d11,
+        d12 = bootstrapDDs$d12,
+        d13 = bootstrapDDs$d13,
+        d20 = bootstrapDDs$d20,
+        d21 = bootstrapDDs$d21,
+        d22 = bootstrapDDs$d22,
+        sf = sf
+      )
+    
+    # Get stability of fixed points
+    stabs = get_stability(bootstrapDDs)
+    
+    # Apply Exit Time Analysis (Carpenter's (2022) approach)
+    print("Estimate D via Carpenter's (2022) method")
+    boot_est_Carp[i] = est_D_Carp(
+      Ux = rec_x,
+      D = bootstrapDDs,
+      stabs = stabs,
+      # Tstep = 1:length(as.vector(Ux)),
+      Tstep = 1:length(as.vector(Ux)) / sf,
+      ntau = ntau,
+      bins = bins,
+      bw_sd = bw_sd,
+      interpol_steps = interpol_steps
+    )
+  }
+  return(boot_est_Carp = boot_est_Carp)
+}
+
+bootstrap_demo <-
+  bootstrap_Lang(bootstrap_n = 5,
+                 bootstrapDDs = bootDD_example,
+                 N = example$N,
+                 sf = example$sf, 
+                 ntau = example$ntau, 
+                 bins = example$bins, 
+                 bw_sd = example$bw_sd, 
+                 interpol_steps = example$interpol_steps)
+
+example$est_Carp$meanETl
+example$est_Carp$meanETr
+
+# Plot bootstrap time series and probability density function (PDF)
+op <- par(no.readonly = TRUE)
+par(mar = c(4.2, 5.4, 0.5, 0.5))
+layout(matrix(c(1, 1, 2), 1, 3))
+plot((1:length(rec_x)/sf), rec_x, xlab = "t [s]", ylab = "x [a.u.]", t = 'l')
+plot(density(rec_x), xlab = "x [a.u.]", ylab = "density", t = 'l',main = "")
+par(op)
+
+DD = apply_Langevin1D_adapted(
+  rec_x,
+  bins,
+  ntau,
+  sf, 
+  bin_min = 100,
+  Tstep,
+  bw_sd
+)
 
 ### Assumption checks ###
 # Check stationary
