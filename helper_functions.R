@@ -294,6 +294,7 @@ get_stability <- function(D) {
 
 
 est_D_Carp <- function(Ux,
+                       sf, 
                        D,
                        stabs,
                        Tstep,
@@ -340,7 +341,8 @@ est_D_Carp <- function(Ux,
     Theoretical_df %>% dplyr::filter(variable == "diffusion")  %>% dplyr::rename(y = value)  %>% dplyr::arrange(x) %>% dplyr::select(-variable),
     xeq = stabs$fps,
     # theoretical fixed points
-    xvec = xvec
+    xvec = xvec,
+    interpol_steps = interpol_steps
   ) # interpolation vector specifying points on the x-axis
   # } else{
   #   TheoreticalExitTime = list(Theoretical_df = data.frame())
@@ -355,7 +357,8 @@ est_D_Carp <- function(Ux,
       D2s = DD$D2s,
       xeq = DD$xeq,
       # estimated fixed points
-      xvec = xvec # interpolation vector specifying points on the x-axis
+      xvec = xvec,# interpolation vector specifying points on the x-axis
+      interpol_steps = interpol_steps
     )
   } else {
     EstimatedExitTime = list(ET_df = data.frame())
@@ -832,7 +835,8 @@ get_exit_time <- function(D1s,
                           D2s,
                           xeq,
                           xvec,
-                          atol = 1e-5) {
+                          atol = 1e-5,
+                          interpol_steps) {
   # Step 4 Carpenter (2022)
   # Calculate Exit Times =======================================================
 
