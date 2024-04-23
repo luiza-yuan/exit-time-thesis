@@ -74,8 +74,8 @@ forloop = tidyr::expand_grid(
   scenario = c("2fps-balanced-deepening", "right-fp-gains-dominance"), #"left-fp-gains-dominance"
   strength_D2 = c(.3),
   sf = c(10), #c(10, 100),
-  N = c(600), #c(500, 100000),
-  bins = c(60), #c(30, 40, 100),
+  N = c(5000), #c(500, 100000),
+  bins = c(500), #c(30, 40, 100),
   interpol_steps = 50,# c(50, 100, 500),
   ntau = c(3), # c(3, 5, 10),
   bw_sd = .3,
@@ -99,7 +99,7 @@ filtered_forloop <- filtered_forloop[!sapply(filtered_forloop, is.null)]
 nr_steps_bif = 5
 
 step_idx = 3
-for_par=forloop[[3]]
+for_par=forloop[[1]]
 type_D2 = for_par$type_D2
 scenario = for_par$scenario
 bins = for_par$bins
@@ -202,7 +202,7 @@ foreach(for_par = forloop) %do% {
 
     # Loop through steps in bifurcation parameter
     foreach(step_idx = 1:nr_steps_bif,
-            D = Ds,
+            D = Ds[[3]],
             # .packages = c("ggplot2"),
             # .export = c("interpol_steps"),
             .export = c(functions)) %dopar% {
@@ -299,7 +299,7 @@ parallel::stopCluster(cl) # End cluster
 # load example data
 example <-
   readRDS(
-    "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesis/Rinn_est_scale_check/2fps-balanced-deepening/constant-D2/D2strength0.3000_sf10_N1000_iter0003_step0002_pars-1.50_0.00_1.50_0.00_0.00_0.00_0.30_bins100_ntau3_interpol50_bw0.30.RDS"
+    "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesis/Rinn_est_scale_check/2fps-balanced-deepening/constant-D2/D2strength0.3000_sf10_N5000_iter0002_step0003_pars-2.00_0.00_2.00_0.00_0.00_0.00_0.30_bins500_ntau3_interpol50_bw0.30.RDS"
   )
 
 # D1 and D2 ("raw") estimated from Langevin1D_adapted
@@ -525,9 +525,9 @@ points(example$est_Carp$DD$DDLangout$D2s$x, example$est_Carp$DD$DDLangout$D2s$y,
 abline(h =y_pred_D2_test, col = "purple")
 
 # generating timeseries from this goes to infinity
-bootstrap_complex_model <-
+bootstrap_largeN <-
   bootstrap_Lang(bootstrap_n = 20,
-                 bootstrapDDs = estDDs,
+                 bootstrapDDs = bootstrapDDs,
                  example$N,
                  example$sf, 
                  example$ntau, 
@@ -540,7 +540,7 @@ bootstrap_complex_model <-
 # length(bootstrap_demo$execution_times)
 # length(bootstrap_demo$full_boot_est_Carp[[12]]$meanETl)
 
-saveRDS(bootstrap_demo_smoothed, paste0(filepath_base, "bootstrap_demo_smoothed.RDS"))
+saveRDS(bootstrap_largeN, paste0(filepath_base, "_bootstrap_largeN.RDS"))
 
 # Stop the cluster
 # stopCluster(cl)
@@ -549,6 +549,7 @@ saveRDS(bootstrap_demo_smoothed, paste0(filepath_base, "bootstrap_demo_smoothed.
 bootstrap_demo <- readRDS("/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesis/exit-time-thesisbootstrap_demo.RDS") # this I ran 100 times, the parent model was reconstructed based on NOT smoothed D1's and D2's 
 bootstrap_demo2 <- readRDS("/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesisbootstrap_demo2.RDS") # 20 times, the parent model is the theoretical model
 bootstrap_demo_smoothed<- readRDS("/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesisbootstrap_demo_smoothed.RDS") # 20 times, the parent model was reconstructed based on smoothed D1's and D2's 
+bootstrap_largeN <- readRDS("/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesis/exit-time-thesis_bootstrap_largeN.RDS")
 
 bootstrap_demo$full_boot_est_Carp[[1]]$fp_df
 bootstrap_demo2$full_boot_est_Carp[[1]]$fp_df
@@ -664,6 +665,39 @@ ggplot(data = data.frame(x = boot_meanETr), aes(x = x)) +
   geom_vline(aes(xintercept = example$est_Carp$meanETr), linetype = "dashed", color = "red", alpha = 0.5) +
   labs(title = "Distribution mean exit time (right) estimated from reconstructed models (smoothed)", x = "Values", y = "Density")
 
+# bootstrap mean exit times from large N reconstructed model (the smoothed D1s and D2s are used to estimate the parent model)
+boot_meanETl <- vector()
+for(i in 1:20){
+  boot_meanETl[i] <- bootstrap_largeN$full_boot_est_Carp[[i]]$meanETl
+}
+confidence_interval <- quantile(boot_meanETl, c(0.025, 0.975))
+example$est_Carp$meanETl
+
+ggplot(data = data.frame(x = boot_meanETl), aes(x = x)) +
+  # geom_density(fill = "skyblue", color = "black") +
+  geom_histogram(fill = "skyblue",
+                 color = "black",
+                 bins = 20) +
+  # geom_density(color = "darkblue", size = 0.5) +
+  geom_vline(aes(xintercept = example$est_Carp$meanETl), linetype = "dashed", color = "red", alpha = 0.5) +
+  labs(title = "Distribution mean exit time (left) estimated from reconstructed models (smoothed)", x = "Values", y = "Density")
+
+boot_meanETr <- vector()
+for(i in 1:20){
+  boot_meanETr[i] <- bootstrap_largeN$full_boot_est_Carp[[i]]$meanETr
+}
+confidence_interval <- quantile(boot_meanETr, c(0.025, 0.975))
+example$est_Carp$meanETr
+
+ggplot(data = data.frame(x = boot_meanETr), aes(x = x)) +
+  # geom_density(fill = "skyblue", color = "black") +
+  geom_histogram(fill = "skyblue",
+                 color = "black",
+                 bins = 20) +
+  # geom_density(color = "darkblue", size = 0.5) +
+  geom_vline(aes(xintercept = example$est_Carp$meanETr), linetype = "dashed", color = "red", alpha = 0.5) +
+  labs(title = "Distribution mean exit time (right) estimated from reconstructed models (smoothed)", x = "Values", y = "Density")
+
 ##### how to adjust bias for D1?
 boot_D1 <- list()
 for(i in 1:100){
@@ -679,10 +713,10 @@ for(i in seq_along(boot_D1[[1]])) {
 plot(example$est_Carp$DD$DDLangout$D1, main = "bootstrapped D1s (not smoothed)")
 points(median_D1_reconstructed, col = "red", pch = 4)
 
-reconstructed_D1s_perbin <- data.frame(group = rep(1:100, each = 100), value = unlist(transposed_D1))
+reconstructed_D1s_perbin <- data.frame(group = rep(1:example$bins, each = 100), value = unlist(transposed_D1))
 
 # Combine reconstructed D1's per bin with parent D1 estimates
-reconstructed_D1s_perbin <- data.frame(group = rep(1:100, each = 100), value = unlist(transposed_D1), parent_D1 = rep(example$est_Carp$DD$DDLangout$D1, each = 100))
+reconstructed_D1s_perbin <- data.frame(group = rep(1:example$bins, each = 100), value = unlist(transposed_D1), parent_D1 = rep(example$est_Carp$DD$DDLangout$D1, each = 100))
 
 # Density plot of D1 estimates per bin from reconstructed models (reconstructed on parent model, not smoothed) 
 plot_notsmoothed_parent <- ggplot(reconstructed_D1s_perbin, aes(x = value)) +
@@ -712,7 +746,7 @@ plot_notsmoothed_parent <- ggplot(reconstructed_D1s_perbin, aes(x = value)) +
 # Density plot of D1 estimates per bin from reconstructed models (reconstructed on parent model, smoothed) 
 boot_D1 <- list()
 for(i in 1:20){
-  boot_D1[[i]] <- bootstrap_demo_smoothed$full_boot_est_Carp[[i]]$DD$DDLangout$D1
+  boot_D1[[i]] <- bootstrap_demo2$full_boot_est_Carp[[i]]$DD$DDLangout$D1
 }
 
 transposed_D1 <- list()
@@ -721,13 +755,56 @@ for(i in seq_along(boot_D1[[1]])) {
   transposed_D1[[i]] <- sapply(boot_D1, function(x) x[[i]])
   median_D1_reconstructed[i] <- median(transposed_D1[[i]])
 }
-plot(example$est_Carp$DD$DDLangout$D1, main = "bootstrapped D1s (smoothed)")
+plot(example$est_Carp$DD$DDLangout$D1, main = "bootstrapped D1s")
+points(median_D1_reconstructed, col = "red", pch = 4)
+
+reconstructed_D1s_perbin <- data.frame(group = rep(1:example$bins, each = 100), value = unlist(transposed_D1))
+
+# Combine reconstructed D1's per bin with parent D1 estimates
+reconstructed_D1s_perbin <- data.frame(group = rep(1:example$bins, each = 100), value = unlist(transposed_D1), parent_D1 = rep(example$est_Carp$DD$DDLangout$D1, each = 100))
+
+ggplot(reconstructed_D1s_perbin, aes(x = value)) +
+  # geom_density(fill = "skyblue", color = "black") +
+  geom_histogram(fill = "skyblue",
+                 color = "black",
+                 bins = 20) +
+  geom_density(color = "darkblue", size = 0.5) +
+  facet_wrap( ~ group, scales = "free") +
+  geom_vline(
+    data = subset(reconstructed_D1s_perbin, !is.na(parent_D1)),
+    aes(xintercept = parent_D1),
+    linetype = "dashed",
+    color = "red",
+    alpha = 0.5
+  ) +
+  theme_minimal() +
+  theme(
+    panel.spacing = unit(0, "points"),
+    strip.background = element_blank(),
+    axis.title = element_blank(),
+    # axis.text = element_blank(),
+    axis.ticks = element_blank()
+  )
+
+# Density plot of D1 estimates per bin from large N reconstructed models (reconstructed on parent model, smoothed) 
+boot_D1 <- list()
+for(i in 1:20){
+  boot_D1[[i]] <- bootstrap_largeN$full_boot_est_Carp[[i]]$DD$DDLangout$D1[72:171]
+}
+
+transposed_D1 <- list()
+median_D1_reconstructed <- vector()
+for(i in seq_along(boot_D1[[1]])) {
+  transposed_D1[[i]] <- sapply(boot_D1, function(x) x[[i]])
+  median_D1_reconstructed[i] <- median(transposed_D1[[i]])
+}
+plot(example$est_Carp$DD$DDLangout$D1, main = "bootstrapped D1s")
 points(median_D1_reconstructed, col = "red", pch = 4)
 
 reconstructed_D1s_perbin <- data.frame(group = rep(1:100, each = 100), value = unlist(transposed_D1))
 
 # Combine reconstructed D1's per bin with parent D1 estimates
-reconstructed_D1s_perbin <- data.frame(group = rep(1:100, each = 100), value = unlist(transposed_D1), parent_D1 = rep(example$est_Carp$DD$DDLangout$D1, each = 100))
+reconstructed_D1s_perbin <- data.frame(group = rep(1:100, each = 100), value = unlist(transposed_D1), parent_D1 = rep(example$est_Carp$DD$DDLangout$D1[72:171], each = 100))
 
 ggplot(reconstructed_D1s_perbin, aes(x = value)) +
   # geom_density(fill = "skyblue", color = "black") +
@@ -989,11 +1066,11 @@ Nstep_ahead <-
     for(i in 1:Nstep){
       for(j in 1:Npredictions){
         # print(c("start state is", start_states[j]))
-        set.seed(noise_iter)
+        # set.seed(noise_iter)
         model_timeseries <-
           timeseries1D(
-            N = N*sf,
-            sf = sf,
+            N = 10,
+            sf = 10,
             startpoint = start_states[j], 
             d13 = bootstrapDDs$d13,
             d12 = bootstrapDDs$d12,
@@ -1010,33 +1087,80 @@ Nstep_ahead <-
       }
     }
     
-    # calculate RMSE
-    squared_residuals <- (actual_Nstep_states - Nstep_predictions)^2
-    RMSE = matrix(NA, ncol = Nstep)
+    # # calculate RMSE
+    # squared_residuals <- (actual_Nstep_states - Nstep_predictions)^2
+    # RMSE = matrix(NA, ncol = Nstep)
+    # for(i in 1: Nstep){
+    #   RMSE[,i] <- sqrt(mean(squared_residuals[,i]))
+    # }
+    
+    # calculate MAD
+    # median_Nstep_pred <- matrix(nrow = Npredictions, ncol = Nstep)
+    # MAD = vector()
+    # for(i in 1:Nstep){
+    #   median_Nstep_pred[,i] <- rep(median(Nstep_predictions[,i]), times = Npredictions)
+    #   abs_dev <- abs(Nstep_predictions - median_Nstep_pred)
+    #   MAD[i] <- median(abs_dev[,i])
+    # }
+    
+    # # calculate median absolute error
+    abs_error <- abs(actual_Nstep_states - Nstep_predictions)
+    MAE = vector()
     for(i in 1: Nstep){
-      RMSE[,i] <- sqrt(mean(squared_residuals[,i]))
+      MAE[i] <- median(abs_error[,i])
     }
     
     return(
       list(
+        Npredictions = Npredictions,
         actual_Nstep_states = actual_Nstep_states,
         Nstep_predictions = Nstep_predictions,
-        RMSE = RMSE
+        # RMSE = RMSE
+        # MAD = MAD
+        MAE = MAE
       )
     )
   }
 
-Nstep_demo <- Nstep_ahead(Nstep = 3,
-                          # bootstrap_n = 100,
-                          Npredictions = 100,
-                          bootstrapDDs = bootstrapDDs,
-                          Ux = example$Ux,
-                          N = example$N,
-                          sf = example$sf,
-                          noise_iter = example$noise_iter,
-                          bins = example$bins,
-                          ntau = example$ntau,
-                          bw_sd = example$bw_sd) 
+Nstep_ahead(Nstep = 3,
+            # bootstrap_n = 100,
+            Npredictions = 200,
+            bootstrapDDs = bootstrapDDs,
+            Ux = example$Ux,
+            N = example$N,
+            sf = example$sf,
+            noise_iter = example$noise_iter,
+            bins = example$bins,
+            ntau = example$ntau,
+            bw_sd = example$bw_sd)
+
+Nstep_demo <- matrix(nrow = length(seq(2, 200, by = 10)), ncol = 3)
+for (i in 1:3){
+    for(j in seq(2, 200, by = 10)){
+      n <- which(seq(2, 200, by = 10) == j)
+      Nstep_demo[n,i] <- Nstep_ahead(Nstep = 3,
+                                    # bootstrap_n = 100,
+                                    Npredictions = j,
+                                    bootstrapDDs = bootstrapDDs,
+                                    Ux = example$Ux,
+                                    N = example$N,
+                                    sf = example$sf,
+                                    noise_iter = example$noise_iter,
+                                    bins = example$bins,
+                                    ntau = example$ntau,
+                                    bw_sd = example$bw_sd)$MAE[i]
+    }
+  }
+
+Nstep_demo_df <- data.frame(Npredictions = rep(seq(2, 200, by = 10), times = 3), MAE = c(Nstep_demo[,1], Nstep_demo[,2], Nstep_demo[,3]), step = c(rep("step1", times = 20), rep("step2", times = 20), rep("step3", times = 20)))
+
+# facet plot
+ggplot(Nstep_demo_df, aes(x = Npredictions, y = MAE)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~ step, scales = "fixed", ncol = 1) +
+  labs(title = "N = 1000, sf = 10, tau = 3; no set.seed", x = "Npredictions", y = "MAE") +
+  theme_bw()
 
 # # n step ahead (recursive; doesn't work anymore due to edits)
 # Nstep_ahead <-
