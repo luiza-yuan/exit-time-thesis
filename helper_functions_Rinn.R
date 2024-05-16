@@ -2200,7 +2200,8 @@ style_plot <- function(pl) {
   )
 }
 
-setup_filepaths <- function(filepath_est, filepath_figs,
+setup_filepaths <- function(filepath_est,
+                            filepath_figs,
                             scenario,
                             type_D2,
                             strength_D2,
@@ -2215,14 +2216,19 @@ setup_filepaths <- function(filepath_est, filepath_figs,
                             d22,
                             d21,
                             d20,
-                            bins, ntau, interpol_steps, bw_sd) {
+                            bins,
+                            ntau,
+                            interpol_steps,
+                            bw_sd
+) {
   filepath_out = file.path(
     filepath_est,
     sprintf("%s", scenario),
-    sprintf("%s-D2", type_D2),
-    sprintf("%s-N", N), # added
-    # sprintf("%s-sf", sf), # added
-    # sprintf("%s-tau", tau), # added
+    sprintf("D2strength_%s", strength_D2),
+    # sprintf("%s-D2", type_D2), # removed since only constant noise
+    sprintf("N%s", N), # added
+    sprintf("sf%s", sf), # added
+    sprintf("tau%s", ntau), # added
     sprintf(
       "D2strength%.4f_sf%d_N%d_iter%04d_step%04d_pars%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_bins%d_ntau%d_interpol%d_bw%.2f.RDS",
       strength_D2,
@@ -2244,10 +2250,11 @@ setup_filepaths <- function(filepath_est, filepath_figs,
   filepath_image = file.path(
     filepath_figs,
     sprintf("%s", scenario),
-    sprintf("%s-D2", type_D2),
-    sprintf("%s-N", N), # added
-    # sprintf("%s-sf", sf), # added
-    # sprintf("%s-tau", tau), # added
+    sprintf("D2strength_%s", strength_D2),
+    # sprintf("%s-D2", type_D2), # removed since only constant noise
+    sprintf("N%s", N), # added
+    sprintf("sf%s", sf), # added
+    sprintf("tau%s", ntau), # added
     stringr::str_replace(basename(filepath_out), ".RDS", ".pdf")
   )
   #   file.path(
