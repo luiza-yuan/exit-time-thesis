@@ -1,9 +1,8 @@
+# Load libraries
 library("Langevin")
-# Load library used for plotting
 library("plotrix")
 
-# Original timeseries1D function from Langevin package
-library("Langevin")
+# Generate timeseries using original timeseries1D function from Langevin package
 N = 500
 sf <- 10
 set.seed(4711)
@@ -60,10 +59,11 @@ timeseries1D_adapted <- function(N, startpoint, d13, d12, d11, d10, d22, d21, d2
   return(ts)
 }
 
+# Generate timeseries from timeseries1D_adapted function
 set.seed(4711)
 Ux_adapted <- timeseries1D_adapted(N = N, startpoint = 0, d10 = 0, d11 = 1, d12 = 0, d13 = -1, d22 = 0, d21 = 0, d20 = 1, sf = sf, dt = 1/sf)
 
-# Check if the adapted timeseries1D function produces the same timeseries as the original timeseries1D function
+# Check if the timeseries1D_adapted function produces the same timeseries as the original timeseries1D function from Langevin package
 round(Ux, 2) == round(Ux_adapted, 2)
 
 plot(Ux, type = "l", col = "blue", lty = 1, xlab = "Time", ylab = "x", main = "Time Series Comparison")
