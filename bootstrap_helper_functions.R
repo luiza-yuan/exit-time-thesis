@@ -39,7 +39,8 @@ bootstrap_est_D <- function(D1s, D2s, eD1, eD2, mean_bin, bw_sd, Ux){
   ))
 }
 
-# bootstrap: simulate time series from the reconstructed coefficients
+# Bootstrap function: simulate time series from the reconstructed coefficients
+## Written based on bootstrap steps from Arani supplementary materials
 bootstrap_Lang <-
   function(bootstrap_n,
            bootstrapDDs,
