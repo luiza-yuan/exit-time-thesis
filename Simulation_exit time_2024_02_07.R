@@ -74,13 +74,13 @@ forloop = tidyr::expand_grid(
   scenario = c("right-fp-gains-dominance"), #"left-fp-gains-dominance" "2fps-balanced-deepening", "right-fp-gains-dominance" 
   strength_D2 = c(.3),
   sf = c(10), #c(10, 100),
-  N = c(5000), #c(500, 100000),
-  bins = c(500), #c(30, 40, 100),
+  N = c(1000), #c(500, 100000),
+  bins = c(100), #c(30, 40, 100),
   interpol_steps = 50,# c(50, 100, 500),
   ntau = c(3), # c(3, 5, 10),
   bw_sd = .3,
   #10000
-  noise_iter = c(1:5), #c(1:5)
+  noise_iter = c(3:5), #c(1:5)
   # noise_iter_concat_times = 5
 ) %>% purrr::transpose() %>% unique()
 
@@ -188,6 +188,7 @@ for (fn in functions) {
 }
 
 # Loop through scenarios
+start_time <- Sys.time()
 foreach(for_par = forloop) %do% {
   with(for_par, {
     print(as.data.frame(for_par))
@@ -283,15 +284,20 @@ foreach(for_par = forloop) %do% {
 
               # }
               out = readRDS(paths$filepath_out)
-              # out = readRDS()
-              print("Plot results")
-              new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
+              # # out = readRDS()
+              # print("Plot results")
+              # # new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
+              new_plot_overview(out, paths$filepath_image)
+              # 
               graphics.off()
               # end_time <- Sys.time()
               # execution_times[[i]] <- end_time - start_time
             }
   })
 }
+end_time <- Sys.time()
+execution_time <- end_time - start_time
+
 parallel::stopCluster(cl) # End cluster  
 
 ### Checking helper_functions_Rinn
