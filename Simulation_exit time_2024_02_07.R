@@ -68,19 +68,19 @@ source(file.path(filepath_base, "helper_functions_Rinn.R"))
 # Choose parameters to loop through
 forloop = tidyr::expand_grid(
   # datagen = "Langevin",
-  nr_steps_bif = 5, #length.out for deepening, asymmetry, etc.
+  nr_steps_bif = 3, #length.out for deepening, asymmetry, etc.
   type_D2 = c("constant"),
   #"quadratic",
-  scenario = c("right-fp-gains-dominance"), #"left-fp-gains-dominance" "2fps-balanced-deepening", "right-fp-gains-dominance" 
-  strength_D2 = c(.3),
+  scenario = c("2fps-balanced-deepening"), #"left-fp-gains-dominance" "2fps-balanced-deepening", "right-fp-gains-dominance" 
+  strength_D2 = c(.6),
   sf = c(10), #c(10, 100),
-  N = c(1000), #c(500, 100000),
-  bins = c(100), #c(30, 40, 100),
+  N = c(5000), #c(500, 100000),
+  bins = c(500), #c(30, 40, 100),
   interpol_steps = 50,# c(50, 100, 500),
-  ntau = c(3), # c(3, 5, 10),
+  ntau = c(6), # c(3, 5, 10),
   bw_sd = .3,
   #10000
-  noise_iter = c(3:5), #c(1:5)
+  noise_iter = c(1:3), #c(1:5)
   # noise_iter_concat_times = 5
 ) %>% purrr::transpose() %>% unique()
 
@@ -192,7 +192,6 @@ start_time <- Sys.time()
 foreach(for_par = forloop) %do% {
   with(for_par, {
     print(as.data.frame(for_par))
-    #print("step 1")
     
     # Get polynomial coefficients for forloop
     Ds = get_D(nr_steps_bif,
@@ -206,7 +205,6 @@ foreach(for_par = forloop) %do% {
             # .packages = c("ggplot2"),
             # .export = c("interpol_steps"),
             .export = c(functions)) %dopar% {
-              #print("step 2")
 
               # Setup and create filepaths
               paths = do.call(setup_filepaths, utils::modifyList(
@@ -227,12 +225,8 @@ foreach(for_par = forloop) %do% {
                   bw_sd = bw_sd
                 )
               ))
-              
-              # print(paths)
 
               # if (!file.exists(paths$filepath_out)) {
-                
-                # print("step 3")
                 
                 # Generate timeseries
                 print("Generate timeseries")
@@ -241,8 +235,6 @@ foreach(for_par = forloop) %do% {
                   sf = sf,
                   noise_iter = noise_iter
                 )))
-                
-                #plot(Ux)
                 
                 # Generate concatenated timeseries
                 # Ux <- NULL
@@ -279,16 +271,12 @@ foreach(for_par = forloop) %do% {
                 out = c(as.list(environment()))  # Gather environment
                 out[unlist(lapply(out, class)) == "function"] = NULL # Remove functions
                 saveRDS(out, paths$filepath_out)
-                
-                # saveRDS(out, paste0(paths$filepath_out))
 
               # }
               out = readRDS(paths$filepath_out)
-              # # out = readRDS()
-              # print("Plot results")
-              # # new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
+              print("Plot results")
+              # new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
               new_plot_overview(out, paths$filepath_image)
-              # 
               graphics.off()
               # end_time <- Sys.time()
               # execution_times[[i]] <- end_time - start_time
