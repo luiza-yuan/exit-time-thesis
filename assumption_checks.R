@@ -12,7 +12,7 @@ source(file.path(filepath_base, "bootstrap_helper_functions.R"))
 # Load example for demo purposes
 example <-
   readRDS(
-    "Rinn_est_scale_check/2fps-balanced-deepening/constant-D2/1000-N/D2strength0.3000_sf10_N1000_iter0077_step0003_pars-2.00_0.00_2.00_0.00_0.00_0.00_0.30_bins100_ntau3_interpol50_bw0.30.RDS"
+    "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesis/Rinn_est_scale_check/2fps-balanced-deepening/D2strength_0.3/N1000/sf10/tau3/D2strength0.3000_sf10_N1000_iter0077_step0003_pars-2.00_0.00_2.00_0.00_0.00_0.00_0.30_bins100_ntau3_interpol50_bw0.30.RDS"
   )
 
 ### N-step ahead 
@@ -196,13 +196,13 @@ Nstep_ahead_different_seeds <- function(Nstep, Npredictions, Nseeds, bootstrapDD
           N = 10,
           sf = 10,
           startpoint = start_states[j], 
-          d13 = bootstrapDDs$d13,
-          d12 = bootstrapDDs$d12,
-          d11 = bootstrapDDs$d11,
-          d10 = bootstrapDDs$d10,
-          d22 = bootstrapDDs$d22,
-          d21 = bootstrapDDs$d21,
-          d20 = bootstrapDDs$d20
+          d13 = -2,
+          d12 = 0,
+          d11 = 2,
+          d10 = 0,
+          d22 = 0,
+          d21 = 0,
+          d20 = 0.3
         )
         
         Nstep_predictions[s, j, i] <- model_timeseries[i]
