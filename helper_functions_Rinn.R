@@ -2043,7 +2043,7 @@ new_plot_overview <-
             "Estimated" = 'red3'),
           guide = "none"
         ) +
-        # Adjust the x-axis to start at 0
+        # Adjust the x-axis to start at 0 
         ggplot2::scale_x_continuous(expand = c(0, 0)) +
         # Move the y-axis to the right
         ggplot2::scale_y_continuous(position = 'right') +
@@ -2205,6 +2205,8 @@ setup_filepaths <- function(filepath_est,
                             scenario,
                             type_D2,
                             strength_D2,
+                            N_high_res,
+                            sf_high_res,
                             sf,
                             N,
                             noise_iter,
@@ -2221,6 +2223,7 @@ setup_filepaths <- function(filepath_est,
                             interpol_steps,
                             bw_sd
 ) {
+  # Set up filepath for estimates
   filepath_out = file.path(
     filepath_est,
     sprintf("%s", scenario),
@@ -2230,12 +2233,12 @@ setup_filepaths <- function(filepath_est,
     sprintf("sf%s", sf), # added
     sprintf("tau%s", ntau), # added
     sprintf(
-      "D2strength%.4f_sf%d_N%d_iter%04d_step%04d_pars%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_bins%d_ntau%d_interpol%d_bw%.2f.RDS",
+      "D2strength%.4f_N%d_sf%d_step%04d_iter%04d_pars%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_bins%d_ntau%d_interpol%d_bw%.2f_Downsampled_from_sf%d_N%d.RDS",
       strength_D2,
-      sf,
       N,
-      noise_iter,
+      sf,
       step_idx,
+      noise_iter,
       d13,
       d12,
       d11,
@@ -2243,10 +2246,15 @@ setup_filepaths <- function(filepath_est,
       d22,
       d21,
       d20,
-      bins, ntau, interpol_steps, bw_sd
+      bins, 
+      ntau, 
+      interpol_steps, 
+      bw_sd,
+      sf_high_res,
+      N_high_res
     )
   )
-  # filepath_image = stringr::str_replace(filepath_out, ".RDS", ".pdf")
+  # Set up filepath for plot
   filepath_image = file.path(
     filepath_figs,
     sprintf("%s", scenario),
@@ -2257,26 +2265,6 @@ setup_filepaths <- function(filepath_est,
     sprintf("tau%s", ntau), # added
     stringr::str_replace(basename(filepath_out), ".RDS", ".pdf")
   )
-  #   file.path(
-  #   filepath_figs,
-  #   sprintf("%s", scenario),
-  #   sprintf("%s-D2", type_D2),
-  #   sprintf(
-  #     "D2strength_%.4f_sf%d_N%d_iter%04d_step%04d_pars%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_%.2f.pdf",
-  #     strength_D2,
-  #     sf,
-  #     N,
-  #     noise_iter,
-  #     step_idx,
-  #     d13,
-  #     d12,
-  #     d11,
-  #     d10,
-  #     d22,
-  #     d21,
-  #     d20
-  #   )
-  # )
   
   if (!dir.exists(dirname(filepath_out))) {
     dir.create(dirname(filepath_out), recursive = T)
