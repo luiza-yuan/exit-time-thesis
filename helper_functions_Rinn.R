@@ -2233,10 +2233,10 @@ setup_filepaths <- function(filepath_est,
     sprintf("sf%s", sf), # added
     sprintf("tau%s", ntau), # added
     sprintf(
-      "D2strength%.4f_N%d_sf%d_iter%04d_step%04d__pars%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_bins%d_ntau%d_interpol%d_bw%.2f_Downsampled_from_sf%d_N%d.RDS",
+      "D2strength%.4f_sf%d_N%d_iter%04d_step%04d_pars%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_bins%d_ntau%d_interpol%d_bw%.2f_Downsampled_from_sf%d_N%d.RDS",
       strength_D2,
-      N, 
       sf,
+      N, 
       noise_iter,
       step_idx,
       d13,
