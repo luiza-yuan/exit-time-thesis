@@ -35,10 +35,11 @@ rm(list = ls())
 graphics.off()
 
 # Create necessary directories
-filepath_base = dirname(rstudioapi::getActiveDocumentContext()$path)
+# filepath_base = dirname(rstudioapi::getActiveDocumentContext()$path)
+filepath_base = "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/May"
 setwd(filepath_base)
-filepath_figs = file.path(filepath_base, "Rinn_figs_scale_check") #figs_theoreticalET_scalecheck")
-filepath_est = file.path(filepath_base, "Rinn_est_scale_check")# "est_theoreticalET_scalecheck")
+filepath_figs = file.path(filepath_base, "Sample_figs_check") #figs_theoreticalET_scalecheck")
+filepath_est = file.path(filepath_base, "Sample_est_check")# "est_theoreticalET_scalecheck")
 if (!dir.exists(filepath_figs)) {
   dir.create(filepath_figs, recursive = T)
 }
@@ -72,15 +73,15 @@ forloop = tidyr::expand_grid(
   type_D2 = c("constant"),
   #"quadratic",
   scenario = c("2fps-balanced-deepening"), #"left-fp-gains-dominance" "2fps-balanced-deepening", "right-fp-gains-dominance" 
-  strength_D2 = c(.6),
+  strength_D2 = c(.3),
   sf = c(10), #c(10, 100),
-  N = c(5000), #c(500, 100000),
-  bins = c(500), #c(30, 40, 100),
+  N = c(1000), #c(500, 100000),
+  bins = c(100), #c(30, 40, 100),
   interpol_steps = 50,# c(50, 100, 500),
-  ntau = c(6), # c(3, 5, 10),
+  ntau = c(2), # c(3, 5, 10),
   bw_sd = .3,
   #10000
-  noise_iter = c(1:3), #c(1:5)
+  noise_iter = c(91), #c(1:5)
   # noise_iter_concat_times = 5
 ) %>% purrr::transpose() %>% unique()
 
@@ -96,9 +97,9 @@ filtered_forloop <- filtered_forloop[!sapply(filtered_forloop, is.null)]
 
 # Debug
 #datagen = "Langevin"
-nr_steps_bif = 5
+nr_steps_bif = 3
 
-step_idx = 3
+step_idx = 2
 for_par=forloop[[1]]
 type_D2 = for_par$type_D2
 scenario = for_par$scenario
@@ -121,43 +122,18 @@ rm(list = c("nr_steps_bif", "step_idx", "type_D2", "scenario", "mean_bin", "bw_s
 # 
 # getDoParWorkers() #check how many workers 'foreach' is going to use
 
-# Set up cluster (forking)
+# # Set up cluster (forking)
 cl <- parallel::makeForkCluster(detectCores() - 1) # using forking
-doParallel::registerDoParallel(cl)
+# cl <- parallel::makeForkCluster(6) # note only run this on Snellius!!!!!
 
+# # Set up cluster (no forking)
+# cl <- parallel::makeCluster(detectCores() - 1) # no forking
+# cl <- parallel::makeCluster(6) #note only run this on Snellius!!!!!
+
+doParallel::registerDoParallel(cl)
 getDoParWorkers() #check how many workers 'foreach' is going to use
 
-# Packages, functions, variables 
-# packages <-
-#   c(
-#     "bvpSolve",
-#     "cubature",
-#     "stats",
-#     "Langevin",
-#     "dplyr",
-#     "ggplot2",
-#     "parallel",
-#     "doParallel",
-#     "foreach",
-#     "cowplot",
-#     "ggnewscale",
-#     "latex2exp"
-#   )
-# variables <-
-#   c(
-#     "datagen",
-#     "nr_steps_bif",
-#     "type_D2",
-#     "scenario",
-#     "strength_D2",
-#     "sf",
-#     "N",
-#     "bins",
-#     "interpol_steps",
-#     "ntau",
-#     "bw_sd",
-#     "noise_iter"
-#   )
+# Functions
 functions <-
   c(
     # "apply_DDbintau",
@@ -173,6 +149,8 @@ functions <-
     "get_effective_potential",
     "get_exit_time",
     "get_potential",
+    "get_resilience_potential",
+    "get_resilience_prob_dist",
     "get_stability",
     "get_theoretical_D",
     "get_weights",
@@ -183,9 +161,38 @@ functions <-
     "style_plot"
   )
 
-for (fn in functions) {
-  rm(list = fn, envir = .GlobalEnv)
-}
+packages <-
+  c(
+    "bvpSolve",
+    "cubature",
+    "stats",
+    "Langevin",
+    "dplyr",
+    "ggplot2",
+    "parallel",
+    "doParallel",
+    "foreach",
+    "cowplot",
+    "ggnewscale",
+    "latex2exp"
+  )
+
+variables <-
+  c(
+    "nr_steps_bif",
+    "type_D2",
+    "scenario",
+    "strength_D2",
+    "sf_high_res",
+    "N_high_res",
+    "sf",
+    "N",
+    "bins",
+    "interpol_steps",
+    "ntau",
+    "bw_sd",
+    "noise_iter"
+  )
 
 # Loop through scenarios
 start_time <- Sys.time()
@@ -198,331 +205,113 @@ foreach(for_par = forloop) %do% {
                scenario,
                type_D2,
                strength_D2)
-
+    
     # Loop through steps in bifurcation parameter
-    foreach(step_idx = 1:nr_steps_bif,
-            D = Ds,
-            # .packages = c("ggplot2"),
-            # .export = c("interpol_steps"),
-            .export = c(functions)) %dopar% {
-
-              # Setup and create filepaths
-              paths = do.call(setup_filepaths, utils::modifyList(
-                D,
-                list(
-                  filepath_est = filepath_est,
-                  filepath_figs = filepath_figs,
-                  scenario = scenario,
-                  type_D2 = type_D2,
-                  strength_D2 = strength_D2,
-                  sf = sf,
-                  N = N,
-                  noise_iter = noise_iter,
-                  step_idx = step_idx,
-                  bins = bins,
-                  ntau = ntau,
-                  interpol_steps = interpol_steps,
-                  bw_sd = bw_sd
-                )
-              ))
-
-              # if (!file.exists(paths$filepath_out)) {
-                
-                # Generate timeseries
-                print("Generate timeseries")
-                Ux = do.call(generate_Langevin, utils::modifyList(D, list(
-                  N = N,
-                  sf = sf,
-                  noise_iter = noise_iter
-                )))
-                
-                # Generate concatenated timeseries
-                # Ux <- NULL
-                # for (i in 0:(noise_iter_concat_times-1)){
-                #   Ux_iter <- do.call(generate_Langevin, utils::modifyList(D, list(
-                #     N = N/noise_iter_concat_times,
-                #     sf = sf,
-                #     noise_iter = noise_iter + i
-                #   )))
-                #   # print(noise_iter + i)
-                #   Ux <- c(Ux, Ux_iter)
-                # }
-
-                # Get stability of fixed points
-                print("Get theoretical fixed points and their stability")
-                stabs = get_stability(D)
-
-                # Apply Exit Time Analysis (Carpenter's (2022) approach adapted )
-                print("Estimate Langevin model & calculate exit times and alt. metrics")
-                est_Carp = est_D_Carp(
-                  Ux,
-                  sf, 
-                  D,
-                  stabs,
-                  # Tstep = 1:length(as.vector(Ux)),
-                  Tstep = 1:length(as.vector(Ux)) / sf,
-                  ntau = ntau,
-                  bins = bins,
-                  bw_sd = bw_sd,
-                  interpol_steps = interpol_steps
-                )
-
-                # Save results
-                out = c(as.list(environment()))  # Gather environment
-                out[unlist(lapply(out, class)) == "function"] = NULL # Remove functions
-                saveRDS(out, paths$filepath_out)
-
-              # }
-              out = readRDS(paths$filepath_out)
-              print("Plot results")
-              # new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
-              new_plot_overview(out, paths$filepath_image)
-              graphics.off()
-              # end_time <- Sys.time()
-              # execution_times[[i]] <- end_time - start_time
-            }
+    foreach(
+      step_idx = 1:nr_steps_bif,
+      D = Ds,
+      .packages = c(packages),
+      .export = c(functions, "filepath_est", "filepath_figs")
+      # .export = c(functions)
+    ) %dopar% {
+      # Setup and create filepaths
+      paths = do.call(setup_filepaths, utils::modifyList(
+        D,
+        list(
+          filepath_est = filepath_est,
+          filepath_figs = filepath_figs,
+          scenario = scenario,
+          type_D2 = type_D2,
+          strength_D2 = strength_D2,
+          sf_high_res = 0,
+          N_high_res = 0,
+          sf = sf,
+          N = N,
+          noise_iter = noise_iter,
+          step_idx = step_idx,
+          bins = bins,
+          ntau = ntau,
+          interpol_steps = interpol_steps,
+          bw_sd = bw_sd
+        )
+      ))
+      
+      # if (!file.exists(paths$filepath_out)) {
+      
+      # Generate timeseries
+      print("Generate timeseries")
+      Ux = do.call(generate_Langevin, utils::modifyList(D, list(
+        N = N,
+        sf = sf,
+        noise_iter = noise_iter
+      )))
+      
+      # Generate concatenated timeseries
+      # Ux <- NULL
+      # for (i in 0:(noise_iter_concat_times-1)){
+      #   Ux_iter <- do.call(generate_Langevin, utils::modifyList(D, list(
+      #     N = N/noise_iter_concat_times,
+      #     sf = sf,
+      #     noise_iter = noise_iter + i
+      #   )))
+      #   # print(noise_iter + i)
+      #   Ux <- c(Ux, Ux_iter)
+      # }
+      
+      # Get stability of fixed points
+      print("Get theoretical fixed points and their stability")
+      stabs = get_stability(D)
+      
+      # Apply Exit Time Analysis (Carpenter's (2022) approach adapted )
+      print("Estimate Langevin model & calculate exit times and alt. metrics")
+      est_Carp = est_D_Carp(
+        Ux,
+        sf, 
+        D,
+        stabs,
+        # Tstep = 1:length(as.vector(Ux)),
+        Tstep = 1:length(as.vector(Ux)) / sf,
+        ntau = ntau,
+        bins = bins,
+        bw_sd = bw_sd,
+        interpol_steps = interpol_steps
+      )
+      
+      # Save results
+      out = c(as.list(environment()))  # Gather environment
+      variables_to_exclude = c(
+        "cl",
+        "for_par",
+        "forloop",
+        "execution_time",
+        "start_time",
+        "end_time",
+        "functions",
+        "packages",
+        "variables"
+      )
+      filtered_out = out[!names(out) %in% variables_to_exclude]
+      
+      filtered_out[unlist(lapply(filtered_out, class)) == "function"] = NULL # Remove functions
+      # out[unlist(lapply(out, class)) == "function"] = NULL # Remove functions
+      saveRDS(filtered_out, paths$filepath_out)
+      
+      }
+      # out = readRDS(paths$filepath_out)
+      # print("Plot results")
+      # # new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
+      # new_plot_overview(out, paths$filepath_image)
+      # graphics.off()
+    # }
   })
 }
 end_time <- Sys.time()
 execution_time <- end_time - start_time
+print(execution_time)
+
+# Define log file path and append the execution time to the log file
+log_file <- "execution_time_log.txt"
+write(paste("Execution Time:", "For condition:", forloop[[1]]$N, "and", forloop[[1]]$sf, "for", length(forloop), "iterations is", execution_time, "\n", "mins"), file = log_file, append = TRUE)
 
 parallel::stopCluster(cl) # End cluster  
 
-### Checking helper_functions_Rinn
-# load example data
-example <-
-  readRDS(
-    "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesis/Rinn_est_scale_check/2fps-balanced-deepening/constant-D2/D2strength0.3000_sf10_N5000_iter0002_step0003_pars-2.00_0.00_2.00_0.00_0.00_0.00_0.30_bins500_ntau3_interpol50_bw0.30.RDS"
-  )
-example$est_Carp$meanETl
-example$est_Carp$meanETr
-
-check <- readRDS("/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesis/Rinn_est_scale_check/2fps-balanced-deepening/constant-D2/1000-N/D2strength0.3000_sf10_N1000_iter0065_step0002_pars-1.00_0.00_1.00_0.00_0.00_0.00_0.30_bins100_ntau3_interpol50_bw0.30.RDS")
-# D1 and D2 ("raw") estimated from Langevin1D_adapted
-out$est_Carp$est_df_Rinn[out$est_Carp$est_df_Rinn$variable == "D1",]
-
-out$est_Carp$compl_df[out$est_Carp$compl_df$variable == "drift",]
-out_D1 <- as.numeric(out$est_Carp$compl_df[out$est_Carp$compl_df$variable == "drift" & out$est_Carp$compl_df$source == "Estimated",]$value)
-out_D1x <- out$est_Carp$compl_df[out$est_Carp$compl_df$variable == "drift" & out$est_Carp$compl_df$source == "Estimated",]$x
-
-out_D1_theo <- as.numeric(out$est_Carp$compl_df[out$est_Carp$compl_df$variable == "drift" & out$est_Carp$compl_df$source == "Theoretical",]$value)
-out_D1x_theo <- out$est_Carp$compl_df[out$est_Carp$compl_df$variable == "drift" & out$est_Carp$compl_df$source == "Theoretical",]$x
-
-plot(out_D1x, out_D1)
-points(out_D1x_theo,out_D1_theo)
-
-plot(xvec, drift)
-points(DD$D1s$x, DD$D1s$y, col = "red")
-points(DD$D1s$x, DD$D1s$x - DD$D1s$x^3, col = "blue")
-
-plot(xvec, negPF)
-plot(Theoretical_df$x[Theoretical_df$variable == "potential"], Theoretical_df$value[Theoretical_df$variable == "potential"])
-
-# Notes from Luiza Yuan, 03.2024:
-### Check parallel processing output ###
-attempt<-
-  readRDS(
-    "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/exit-time-thesis/est_parallel_check/2fps-balanced-deepening/constant-D2/D2strength0.5000_sf10_N1000_iter0001_step0001_pars-1.00_0.00_1.00_0.00_0.00_0.00_0.50_bins100_ntau10_interpol100_bw0.30.RDS"
-  )
-attempt$est_Carp$fp_df$xintercept[4]
-
-### Check new_plot_overview function when no mean exit times estimated ###
-out <- readRDS("/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Modified_for_Luiza_2024_02_07/est_parallel_check/2fps-balanced-deepening/constant-D2/N1000sf10interpol500/D2strength0.5000_sf10_N1000_iter0001_step0005_pars-3.00_0.00_3.00_0.00_0.00_0.00_0.50_bins100_ntau10_interpol500_bw0.30.RDS")
-filepath_image <- "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Modified_for_Luiza_2024_02_07/figs_parallel_check/2fps-balanced-deepening/constant-D2/N1000sf10interpol500/D2strength0.5000_sf10_N1000_iter0001_step0005_pars-3.00_0.00_3.00_0.00_0.00_0.00_0.50_bins100_ntau10_interpol500_bw0.30.pdf"
-new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
-# debug
-est_Carp = out$est_Carp
-stabs = out$stabs
-Ux = out$Ux
-
-# Notes from Luiza Yuan, 29.01.2024:
-
-#################################################################################################################
-#I just wanted to check whether differences in the plots for theoretical drift, diffusion, and potential were simply due to differences in the min and max x's used in sf10 and sf100
-#################################################################################################################
-
-# Get two examples of sf10 vs sf100 (in this case iter = 1, step = 4 i.e. drift = -2.5x^3 + 2.5x)
-N400_sf10 <-
-  readRDS(
-    "/Users/luizashen58/Documents/Documents - Luiza’s MacBook Air/UvA Master Yr 2/Thesis/theoretical_ET_2024_01_29/est_theoreticalET/2fps-balanced-deepening/constant-D2/D2strength_0.3000_sf10_N400_iter0001_step0004_pars-2.50_0.00_2.50_0.00_0.00_0.00_0.30.RDS"
-  )
-
-N400_sf100 <-
-  readRDS(
-    "/Users/luizashen58/Documents/Documents - Luiza’s MacBook Air/UvA Master Yr 2/Thesis/est_theoreticalET_scalecheck/2fps-balanced-deepening/constant-D2/D2strength_0.3000_sf100_N400_iter0001_step0004_pars-2.50_0.00_2.50_0.00_0.00_0.00_0.30.RDS"
-  )
-
-## The theoretical drift, diffusion, and potentials were not saved (I need to fix this), so I recreated them here in order to check some things
-
-# original code for plotting theoretical drift/diffusion/potential:
-# xlim = max(abs(c(stabs$fps, Ux)))
-# theoretical_df = get_theoretical_D(D, min_x = -xlim, max_x = xlim)
-
-get_theoretical_df <- function(D, data) {
-  xlim = max(abs(c(data$stabs$fps, data$Ux)))
-  get_theoretical_D(D, min_x = -xlim, max_x = xlim)
-}
-
-N400_sf10_theoretical_df <-
-  get_theoretical_df(N400_sf10$D, N400_sf10)
-N400_sf100_theoretical_df <-
-  get_theoretical_df(N400_sf100$D, N400_sf100)
-
-# check
-N400_sf10_min_x <-
-  min(N400_sf10_theoretical_df$x[N400_sf10_theoretical_df$variable == "drift_analytical"])
-N400_sf10_max_x <-
-  max(N400_sf10_theoretical_df$x[N400_sf10_theoretical_df$variable == "drift_analytical"])
-
-N400_sf100_min_x <-
-  min(N400_sf100_theoretical_df$x[N400_sf100_theoretical_df$variable == "drift_analytical"])
-N400_sf100_max_x <-
-  max(N400_sf100_theoretical_df$x[N400_sf100_theoretical_df$variable == "drift_analytical"])
-
-- 2.5 * (N400_sf10_min_x ^ 3) + 2.5 * (N400_sf10_min_x) == max(N400_sf10_theoretical_df$value[N400_sf10_theoretical_df$variable == "drift_analytical"])
-- 2.5 * (N400_sf10_max_x ^ 3) + 2.5 * (N400_sf10_max_x) == min(N400_sf10_theoretical_df$value[N400_sf10_theoretical_df$variable == "drift_analytical"])
-
-- 2.5 * (N400_sf100_min_x ^ 3) + 2.5 * (N400_sf100_min_x) == max(N400_sf100_theoretical_df$value[N400_sf100_theoretical_df$variable == "drift_analytical"])
-- 2.5 * (N400_sf100_max_x ^ 3) + 2.5 * (N400_sf100_max_x) == min(N400_sf100_theoretical_df$value[N400_sf100_theoretical_df$variable == "drift_analytical"])
-
-
-#################################################################################################################
-#I wanted to check how the 'bins' argument affects theoretical exit time estimation because 'bins' should affect only the estimation of drift and diffusion and not anything to do with the theoretical drift/diffusion/exit times
-################################################################################################################
-
-get_theoretical_df <- function(D, data) {
-  xlim = max(abs(c(data$stabs$fps, data$Ux)))
-  get_theoretical_D(D, min_x = -xlim, max_x = xlim)
-} # copy/pasted here just for clarity
-
-# read-in example for N = 400, sf = 10, bins = 100
-N400_sf10 <-
-  readRDS(
-    "/Users/luizashen58/Documents/Documents - Luiza’s MacBook Air/UvA Master Yr 2/Thesis/theoretical_ET_2024_01_29/est_theoreticalET/2fps-balanced-deepening/constant-D2/D2strength_0.3000_sf10_N400_iter0001_step0004_pars-2.50_0.00_2.50_0.00_0.00_0.00_0.30.RDS"
-  ) # copy/pasted here just for clarity
-N400_sf10_theoretical_df <-
-  get_theoretical_df(N400_sf10$D, N400_sf10)
-
-# read-in example for N = 400, sf = 10, bins = 40
-N400_sf10_bin40 <-
-  readRDS(
-    "/Users/luizashen58/Documents/Documents - Luiza’s MacBook Air/UvA Master Yr 2/Thesis/est_theoreticalET_scalecheck/2fps-balanced-deepening/constant-D2/N400_sf10_bin40/D2strength_0.3000_sf10_N400_iter0001_step0004_pars-2.50_0.00_2.50_0.00_0.00_0.00_0.30.RDS"
-  )
-
-N400_sf10_bin40_theoretical_df <-
-  get_theoretical_df(N400_sf10_bin40$D, N400_sf10_bin40)
-
-# the values for theoretical drift, diffusion, and potential are the same regardless of bin size (as expected)
-N400_sf10_bin40_theoretical_df$value[N400_sf10_bin40_theoretical_df$variable == "drift_analytical"] == N400_sf10_theoretical_df$value[N400_sf10_theoretical_df$variable == "drift_analytical"]
-
-N400_sf10_bin40_theoretical_df$value[N400_sf10_bin40_theoretical_df$variable == "diff_analytical"] == N400_sf10_theoretical_df$value[N400_sf10_theoretical_df$variable == "diff_analytical"]
-
-N400_sf10_bin40_theoretical_df$value[N400_sf10_bin40_theoretical_df$variable == "potential_analytical"] == N400_sf10_theoretical_df$value[N400_sf10_theoretical_df$variable == "potential_analytical"]
-
-## checking 'xvec' (interpolation vector specifying points on the x-axis)
-# (this is the only thing I found in the theoretical exit time estimation/get_theoretical_exit_time function that is related to bins/estimated drift/diffusion)
-
-# xvec specification in get_exit_time function (and hence in get_theoretical_exit_time function):
-
-# nearest = .1
-# xvec = seq(-nearest * floor(abs(min(DD$D1s$x)) / nearest),
-#            nearest * floor(abs(max(DD$D1s$x)) / nearest),
-#            length.out = interpol_steps)
-
-## recreating DD for N400_sf10 (b/c not saved, need to fix)
-sf = N400_sf10$sf
-steps = c(1:3)
-bins = 100 #note
-bw_sd = .3
-interpol_steps = 100
-Tstep = 1:length(as.vector(N400_sf10$Ux)) / sf
-ntau = max(steps)
-
-N400_sf10_DD = apply_DDbintau(
-  Ux = N400_sf10$Ux,
-  Tstep = Tstep,
-  ntau = ntau,
-  bins = bins,
-  bw_sd = bw_sd
-)
-
-# xvec for N400_sf10
-nearest = .1
-N400_sf10_xvec <-
-  seq(-nearest * floor(abs(min(N400_sf10_DD$D1s$x)) / nearest),
-      nearest * floor(abs(max(N400_sf10_DD$D1s$x)) / nearest),
-      length.out = interpol_steps)
-
-## recreating DD for N400_sf10_bin40 (b/c not saved)
-sf = N400_sf10_bin40$sf
-steps = c(1:3)
-bins = 40 # note
-bw_sd = .3
-interpol_steps = 100
-Tstep = 1:length(as.vector(N400_sf10_bin40$Ux)) / sf
-ntau = max(steps)
-
-N400_sf10_bin40_DD = apply_DDbintau(
-  Ux = N400_sf10_bin40$Ux,
-  Tstep = Tstep,
-  ntau = ntau,
-  bins = bins,
-  bw_sd = bw_sd
-)
-
-# xvec for N400_sf10_bin40
-nearest = .1
-N400_sf10_bin40_xvec <-
-  seq(-nearest * floor(abs(min(
-    N400_sf10_bin40_DD$D1s$x
-  )) / nearest),
-  nearest * floor(abs(max(
-    N400_sf10_bin40_DD$D1s$x
-  )) / nearest),
-  length.out = interpol_steps)
-
-## Now, inspect setups for bvpsolve!!!
-
-# original specification for discretized domain over which the values of the two-point boundary value problem solution variables are calculated:
-
-# solve the left basin from x = 0 (reflecting) to x=xeq[2] (absorbing)
-# x = seq(xeq[1]-1,xeq[2],length.out=30)  # x vector, original (Carpenter)
-# x = seq(min(xvec), xeq[2], length.out = ceiling(interpol_steps / 2)) # wider interval/discretized domain
-
-# N400_sf10_x_original = seq(N400_sf10$est_Carp$xeq[1]-1,N400_sf10$est_Carp$xeq[2],length.out=30)
-# N400_sf10_bin40_x_original = seq(N400_sf10$est_Carp$xeq[1]-1,N400_sf10$est_Carp$xeq[2],length.out=30)
-# N400_sf10_x_original == N400_sf10_bin40_x_original # these are the same (ofc)
-
-## this is the actual setup used (wider interval/discretized domain)
-N400_sf10_left_x = seq(min(N400_sf10_xvec),
-                       N400_sf10$est_Carp$xeq[2],
-                       length.out = ceiling(interpol_steps / 2))
-N400_sf10_bin40_left_x = seq(
-  min(N400_sf10_bin40_xvec),
-  N400_sf10_bin40$est_Carp$xeq[2],
-  length.out = ceiling(interpol_steps / 2)
-)
-
-c(min(N400_sf10_left_x), max(N400_sf10_left_x))
-c(min(N400_sf10_bin40_left_x), max(N400_sf10_bin40_left_x)) # this interval is wider!
-
-# right basin from x=xeq[2] (absorbing) to x > xeq[3] (reflecting)
-# x = seq(xeq[2],xeq[3]+1,length.out=30)  # x vector original (Carpenter)
-# x = seq(xeq[2], max(xvec), length.out = ceiling(interpol_steps / 2))  # wider interval/discretized domain
-
-# N400_sf10_x_original = seq(N400_sf10$est_Carp$xeq[2],N400_sf10$est_Carp$xeq[3]+1,length.out=30)
-# N400_sf10_bin40_x_original = seq(N400_sf10$est_Carp$xeq[2],N400_sf10$est_Carp$xeq[3]+1, length.out=30)
-# N400_sf10_x_original == N400_sf10_bin40_x_original # again, these are the same (ofc)
-
-## this is the actual setup used (wider interval/ discretized domain)
-N400_sf10_right_x = seq(N400_sf10$est_Carp$xeq[2],
-                        max(N400_sf10_xvec),
-                        length.out = ceiling(interpol_steps / 2))
-N400_sf10_bin40_right_x = seq(
-  N400_sf10_bin40$est_Carp$xeq[2],
-  max(N400_sf10_bin40_xvec),
-  length.out = ceiling(interpol_steps / 2)
-)
-
-c(min(N400_sf10_right_x), max(N400_sf10_right_x))
-c(min(N400_sf10_bin40_right_x), max(N400_sf10_bin40_right_x)) # this interval is wider!
