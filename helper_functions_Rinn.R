@@ -979,7 +979,6 @@ get_effective_potential = function(D1s,
   )
 }
 
-
 get_potential = function(D1s,
                          D2s,
                          xeq,
@@ -1045,7 +1044,7 @@ get_potential = function(D1s,
   print(xeq[order(xeq)], quote = F)
   print('Stabilities of equilibria from D1 estimate', quote = F)
   print(stab_xeq, quote = F) # this is the stability of equilibria from D1 estimate!!!
-
+  
   # quartz()
   # par(
   #   mfrow = c(3, 1),
@@ -1249,7 +1248,6 @@ get_potential = function(D1s,
     ), EP)
   )
 }
-
 
 get_exit_time <- function(D1s,
                           D2s,
