@@ -3,6 +3,8 @@
 # (2) specify function packages for parallel processing (removed 'pracma' for ceiling function)
 # (3) removed if(datagen = "Langevin") in plot_overview_new
 
+# dirname(rstudioapi::getActiveDocumentContext()$path)
+
 # Generate timeseries using Langevin
 generate_Langevin <- function(N,
                               sf,
@@ -461,152 +463,152 @@ est_D_Carp <- function(Ux,
 }
 
 # no theoretical (for bootstrapping)
-est_D_Carp_bootstrap <- function(Ux,
-                       sf,
-                       D,
-                       stabs,
-                       Tstep,
-                       ntau,
-                       bins,
-                       bw_sd,
-                       interpol_steps,
-                       add_to_x = .5) {
-  # Estimate drift and diffusion
-  DD = apply_Langevin1D_adapted(
-    Ux = Ux,
-    bins = bins,
-    ntau = ntau,
-    sf = sf,
-    bin_min = 50,
-    Tstep = Tstep,
-    bw_sd = bw_sd
-  )
-
-  # Create an interpolation vector specifying points on the x-axis. Exclude the outer edges of the data and make sure the interpolation vector falls within the range of the drift and diffusion function by a margin
-  # nearest = .1
-  # xvec = seq(-nearest * floor(abs(min(DD$D1s$x)) / nearest),
-  #            nearest * floor(abs(max(DD$D1s$x)) / nearest),
-  #            length.out = interpol_steps)
-  xvec = seq(min(DD$D1s$x, na.rm = TRUE) - add_to_x, #added na.rm = TRUE
-             max(DD$D1s$x, na.rm = TRUE) + add_to_x,
-             length.out = interpol_steps)
-
-  # Get (effective) potential
-  Pot = get_potential(
-    D1s = DD$D1s,
-    D2s = DD$D2s,
-    xeq = DD$xeq,
-    interpol_steps = interpol_steps,
-    xvec = xvec
-  )
-
-  # Theoretical_df = get_theoretical_D(D, min_x = min(xvec), max_x = max(xvec), interpol_steps = interpol_steps) # KCE
-
-  # Only if there are two stable equilibria on the outside and on unstable equilibrium on the inside, compute exit time
-  # if (identical(stabs$stab_fps, c("stable", "unstable", "stable"))) {
-  # # Get exit time using theoretical drift and diffusion
-  # TheoreticalExitTime = get_exit_time(
-  #   Theoretical_df %>% dplyr::filter(variable == "drift") %>% dplyr::rename(y = value) %>% dplyr::arrange(x) %>% dplyr::select(-variable),
-  #   Theoretical_df %>% dplyr::filter(variable == "diffusion")  %>% dplyr::rename(y = value)  %>% dplyr::arrange(x) %>% dplyr::select(-variable),
-  #   xeq = stabs$fps,
-  #   # theoretical fixed points
-  #   xvec = xvec,
-  #   interpol_steps = interpol_steps
-  # ) # interpolation vector specifying points on the x-axis
-  # } else{
-  #   TheoreticalExitTime = list(Theoretical_df = data.frame())
-  # }
-
-  # Only if there are two stable equilibria on the outside and on unstable equilibrium on the inside, compute exit time
-  if (identical(Pot$stab_xeq, c("stable", "unstable", "stable"))) {
-
-    # Exit time calculated with estimated drift and diffusion
-    EstimatedExitTime = get_exit_time(
-      D1s = DD$D1s,
-      D2s = DD$D2s,
-      xeq = DD$xeq, # fixed points estimated from D1
-      xvec = xvec, # interpolation vector specifying points on the x-axis
-      interpol_steps = interpol_steps
-    )
-  } else if(identical(Pot$stab_pot_xeq, c("stable", "unstable", "stable"))) {
-
-    # Exit time calculated with estimated drift and diffusion
-    EstimatedExitTime = get_exit_time(
-      D1s = DD$D1s,
-      D2s = DD$D2s,
-      xeq = Pot$pot_xeq, # fixed points estimated from potential
-      xvec = xvec, # interpolation vector specifying points on the x-axis
-      interpol_steps = interpol_steps
-    )
-  } else {
-    EstimatedExitTime = list(ET_df = data.frame())
-  }
-
-  # Format results (estimated D1 & D2, effective potential)
-  est_df_Rinn = data.frame(
-    x = DD$bin.mid,
-    D1 = DD$D1s$y,
-    D2 = DD$D2s$y
-  ) %>% tidyr::gather(variable, value,-x) %>%
-    dplyr::mutate(err = NA)
-  Pot_df = data.frame(
-    x = Pot$xvec,
-    negPF = Pot$negPF,
-    EPF = c(NA, Pot$EPF),
-    EPF_err = c(NA, Pot$EPF_err),
-    drift = Pot$drift,
-    diffusion = Pot$diff
-  ) %>% dplyr::rename(potential = negPF) %>% tidyr::gather(variable, value,-c(x, EPF_err)) %>%
-    dplyr::rename(err = EPF_err) %>% dplyr::mutate(err = ifelse(variable == "EPF", NA, err))
-
-  # Format results
-  compl_df = rbind(Pot_df %>% mutate(source = "Estimated"),
-                   # TheoreticalExitTime$ET_df %>% mutate(source = "Theoretical"),
-                   EstimatedExitTime$ET_df %>% mutate(source = "Estimated")
-  ) %>% mutate(source = factor(source, levels = c("Estimated"), ordered = T))
-  fp_df = rbind(data.frame(xintercept = stabs$fps,
-                           color = stabs$stab_fps, source = "Theoretical"),
-                data.frame(xintercept = DD$xeq,
-                           color = Pot$stab_xeq, source = "Estimated")) %>%
-    mutate(source = factor(source, levels = c("Estimated"), ordered = T))
-
-  # alt_metrics_potential = get_resilience_potential(fp_df = fp_df, compl_df = compl_df)
-  # alt_metrics_prob_dist = get_resilience_prob_dist(fp_df = fp_df,compl_df = compl_df)
-
-  return(
-    list(
-      DD = DD,
-      est_df_Rinn = est_df_Rinn,
-      compl_df = compl_df,
-      fp_df = fp_df,
-      xeq = DD$xeq,
-      # alt_metrics_potential = alt_metrics_potential,
-      # alt_metrics_prob_dist = alt_metrics_prob_dist,
-      # # est_df_Carp = est_df_Carp,
-      # Pot_df = Pot_df,
-      stab_xeq = Pot$stab_xeq,
-      Dratio = Pot$Dratio,
-      D1D2 = Pot$D1D2,
-      D1D2adj = Pot$D1D2adj,
-      # Theoretical_ET_df = Theoretical_ET_df,
-      # ET_df = ET_df,
-      # theo_meanETl = TheoreticalExitTime$meanETl,
-      # theo_meanETr = TheoreticalExitTime$meanETr,
-      # theo_atolL = TheoreticalExitTime$atolL,
-      # theo_atolR = TheoreticalExitTime$atolR,
-      # theo_diagn_ETL = TheoreticalExitTime$diagn_ETL,
-      # theo_diagn_ETR = TheoreticalExitTime$diagn_ETR,
-      meanETl = EstimatedExitTime$meanETl,
-      meanETr = EstimatedExitTime$meanETr,
-      # nL = EstimatedExitTime$nL,
-      # nR = EstimatedExitTime$nR,
-      # atolL = EstimatedExitTime$atolL,
-      # atolR = EstimatedExitTime$atolR,
-      # diagn_ETL = EstimatedExitTime$diagn_ETL,
-      # diagn_ETR = EstimatedExitTime$diagn_ETR
-    )
-  )
-}
+# est_D_Carp_bootstrap <- function(Ux,
+#                        sf,
+#                        D,
+#                        stabs,
+#                        Tstep,
+#                        ntau,
+#                        bins,
+#                        bw_sd,
+#                        interpol_steps,
+#                        add_to_x = .5) {
+#   # Estimate drift and diffusion
+#   DD = apply_Langevin1D_adapted(
+#     Ux = Ux,
+#     bins = bins,
+#     ntau = ntau,
+#     sf = sf,
+#     bin_min = 50,
+#     Tstep = Tstep,
+#     bw_sd = bw_sd
+#   )
+# 
+#   # Create an interpolation vector specifying points on the x-axis. Exclude the outer edges of the data and make sure the interpolation vector falls within the range of the drift and diffusion function by a margin
+#   # nearest = .1
+#   # xvec = seq(-nearest * floor(abs(min(DD$D1s$x)) / nearest),
+#   #            nearest * floor(abs(max(DD$D1s$x)) / nearest),
+#   #            length.out = interpol_steps)
+#   xvec = seq(min(DD$D1s$x, na.rm = TRUE) - add_to_x, #added na.rm = TRUE
+#              max(DD$D1s$x, na.rm = TRUE) + add_to_x,
+#              length.out = interpol_steps)
+# 
+#   # Get (effective) potential
+#   Pot = get_potential(
+#     D1s = DD$D1s,
+#     D2s = DD$D2s,
+#     xeq = DD$xeq,
+#     interpol_steps = interpol_steps,
+#     xvec = xvec
+#   )
+# 
+#   # Theoretical_df = get_theoretical_D(D, min_x = min(xvec), max_x = max(xvec), interpol_steps = interpol_steps) # KCE
+# 
+#   # Only if there are two stable equilibria on the outside and on unstable equilibrium on the inside, compute exit time
+#   # if (identical(stabs$stab_fps, c("stable", "unstable", "stable"))) {
+#   # # Get exit time using theoretical drift and diffusion
+#   # TheoreticalExitTime = get_exit_time(
+#   #   Theoretical_df %>% dplyr::filter(variable == "drift") %>% dplyr::rename(y = value) %>% dplyr::arrange(x) %>% dplyr::select(-variable),
+#   #   Theoretical_df %>% dplyr::filter(variable == "diffusion")  %>% dplyr::rename(y = value)  %>% dplyr::arrange(x) %>% dplyr::select(-variable),
+#   #   xeq = stabs$fps,
+#   #   # theoretical fixed points
+#   #   xvec = xvec,
+#   #   interpol_steps = interpol_steps
+#   # ) # interpolation vector specifying points on the x-axis
+#   # } else{
+#   #   TheoreticalExitTime = list(Theoretical_df = data.frame())
+#   # }
+# 
+#   # Only if there are two stable equilibria on the outside and on unstable equilibrium on the inside, compute exit time
+#   if (identical(Pot$stab_xeq, c("stable", "unstable", "stable"))) {
+# 
+#     # Exit time calculated with estimated drift and diffusion
+#     EstimatedExitTime = get_exit_time(
+#       D1s = DD$D1s,
+#       D2s = DD$D2s,
+#       xeq = DD$xeq, # fixed points estimated from D1
+#       xvec = xvec, # interpolation vector specifying points on the x-axis
+#       interpol_steps = interpol_steps
+#     )
+#   } else if(identical(Pot$stab_pot_xeq, c("stable", "unstable", "stable"))) {
+# 
+#     # Exit time calculated with estimated drift and diffusion
+#     EstimatedExitTime = get_exit_time(
+#       D1s = DD$D1s,
+#       D2s = DD$D2s,
+#       xeq = Pot$pot_xeq, # fixed points estimated from potential
+#       xvec = xvec, # interpolation vector specifying points on the x-axis
+#       interpol_steps = interpol_steps
+#     )
+#   } else {
+#     EstimatedExitTime = list(ET_df = data.frame())
+#   }
+# 
+#   # Format results (estimated D1 & D2, effective potential)
+#   est_df_Rinn = data.frame(
+#     x = DD$bin.mid,
+#     D1 = DD$D1s$y,
+#     D2 = DD$D2s$y
+#   ) %>% tidyr::gather(variable, value,-x) %>%
+#     dplyr::mutate(err = NA)
+#   Pot_df = data.frame(
+#     x = Pot$xvec,
+#     negPF = Pot$negPF,
+#     EPF = c(NA, Pot$EPF),
+#     EPF_err = c(NA, Pot$EPF_err),
+#     drift = Pot$drift,
+#     diffusion = Pot$diff
+#   ) %>% dplyr::rename(potential = negPF) %>% tidyr::gather(variable, value,-c(x, EPF_err)) %>%
+#     dplyr::rename(err = EPF_err) %>% dplyr::mutate(err = ifelse(variable == "EPF", NA, err))
+# 
+#   # Format results
+#   compl_df = rbind(Pot_df %>% mutate(source = "Estimated"),
+#                    # TheoreticalExitTime$ET_df %>% mutate(source = "Theoretical"),
+#                    EstimatedExitTime$ET_df %>% mutate(source = "Estimated")
+#   ) %>% mutate(source = factor(source, levels = c("Estimated"), ordered = T))
+#   fp_df = rbind(data.frame(xintercept = stabs$fps,
+#                            color = stabs$stab_fps, source = "Theoretical"),
+#                 data.frame(xintercept = DD$xeq,
+#                            color = Pot$stab_xeq, source = "Estimated")) %>%
+#     mutate(source = factor(source, levels = c("Estimated"), ordered = T))
+# 
+#   # alt_metrics_potential = get_resilience_potential(fp_df = fp_df, compl_df = compl_df)
+#   # alt_metrics_prob_dist = get_resilience_prob_dist(fp_df = fp_df,compl_df = compl_df)
+# 
+#   return(
+#     list(
+#       DD = DD,
+#       est_df_Rinn = est_df_Rinn,
+#       compl_df = compl_df,
+#       fp_df = fp_df,
+#       xeq = DD$xeq,
+#       # alt_metrics_potential = alt_metrics_potential,
+#       # alt_metrics_prob_dist = alt_metrics_prob_dist,
+#       # # est_df_Carp = est_df_Carp,
+#       # Pot_df = Pot_df,
+#       stab_xeq = Pot$stab_xeq,
+#       Dratio = Pot$Dratio,
+#       D1D2 = Pot$D1D2,
+#       D1D2adj = Pot$D1D2adj,
+#       # Theoretical_ET_df = Theoretical_ET_df,
+#       # ET_df = ET_df,
+#       # theo_meanETl = TheoreticalExitTime$meanETl,
+#       # theo_meanETr = TheoreticalExitTime$meanETr,
+#       # theo_atolL = TheoreticalExitTime$atolL,
+#       # theo_atolR = TheoreticalExitTime$atolR,
+#       # theo_diagn_ETL = TheoreticalExitTime$diagn_ETL,
+#       # theo_diagn_ETR = TheoreticalExitTime$diagn_ETR,
+#       meanETl = EstimatedExitTime$meanETl,
+#       meanETr = EstimatedExitTime$meanETr,
+#       # nL = EstimatedExitTime$nL,
+#       # nR = EstimatedExitTime$nR,
+#       # atolL = EstimatedExitTime$atolL,
+#       # atolR = EstimatedExitTime$atolR,
+#       # diagn_ETL = EstimatedExitTime$diagn_ETL,
+#       # diagn_ETR = EstimatedExitTime$diagn_ETR
+#     )
+#   )
+# }
 
 # apply_DDbintau <- function(Ux,
 #                            Tstep,
@@ -819,8 +821,8 @@ apply_Langevin1D_adapted <- function(Ux,
                                      bw_sd = 0.3) {
   
   # Set up for binning method (as per Carpenter, 2022)
-  bw <-
-    bw_sd * sd(Ux)  # try bandwidth between 0.1*sd and 0.5*sd (according to Carpenter, 2022)
+  # bw <-
+  #   bw_sd * sd(Ux)  # try bandwidth between 0.1*sd and 0.5*sd (according to Carpenter, 2022)
   
   # # Note that the bw also cuts of the beginning and end of the x vector. Make sure the bandwidth is not so large that there is no data left:
   # while ((bins / 10 * bw) > abs(diff(range(Ux)))) {
@@ -1519,9 +1521,55 @@ get_resilience_potential <- function(fp_df, compl_df) {
 }
 
 
-# Get variance and skewness around dominant modes of probability distribution
-get_resilience_prob_dist <- function(fp_df, compl_df) {
-  # get left vs. right basins of stationary probability distribution (theoretical)
+# Get variance and skewness around dominant modes of probability distribution of system states ("realizations")
+get_resilience_prob_dist <- function(Ux, bw_sd) {
+  # Get probability distribution of system states
+  prob_dist <- density(Ux, n = 1000, bw = bw_sd * sd(Ux))
+  
+  # Extract the x and y values from the density estimate
+  x_values <- prob_dist$x
+  y_values <- prob_dist$y
+  
+  # Find the indice of the saddle point (local minima)
+  saddle_point_index <- which(diff(sign(diff(y_values))) == 2) + 1
+  
+  # Divide probability distribution at saddle point to calculate variance and skewness around the dominant modes
+  x_values_est_L <- x_values[1:saddle_point_index]
+  x_values_est_R <- x_values[saddle_point_index:length(x_values)]
+  
+  prob_values_est_L <- y_values[1:saddle_point_index]
+  prob_values_est_R <- y_values[saddle_point_index:length(y_values)]
+  
+  # Calculate variance around dominant modes (left and right)
+  est_mode_left = x_values_est_L[which.max(prob_values_est_L)]
+  est_var_mode_left =
+    sum(prob_values_est_L * (x_values_est_L - est_mode_left) ^ 2)
+  
+  est_mode_right = x_values_est_R[which.max(prob_values_est_R)]
+  est_var_mode_right =
+    sum(prob_values_est_R * (x_values_est_R - est_mode_right) ^ 2)
+  
+  # Calculate the skewness around dominant modes (left and right)
+  est_skewness_mode_right <-
+    sum(prob_values_est_R * (x_values_est_R - est_mode_right) ^ 3) / (sum(prob_values_est_R * (x_values_est_R - est_mode_right) ^ 2)) ^ (3 / 2)
+  est_skewness_mode_left <-
+    sum(prob_values_est_L * (x_values_est_L - est_mode_left) ^ 3) / (sum(prob_values_est_L * (x_values_est_L - est_mode_left) ^ 2)) ^ (3 / 2)
+  
+  return(
+    list(
+      est_var_mode_left = est_var_mode_left,
+      est_var_mode_right = est_var_mode_right,
+      est_skewness_mode_left = est_skewness_mode_left,
+      est_skewness_mode_right = est_skewness_mode_right
+    )
+  )
+}
+
+
+# Get variance and skewness around dominant modes of stationary probability distribution
+get_resilience_stationary_prob_dist <- function(fp_df, compl_df) {
+  
+  # get stationary probability distribution (theoretical)
   theoretical_prob_dist = compl_df %>%
     filter(variable == "wts", source == "Theoretical")
   theoretical_saddle = fp_df %>%
@@ -1531,6 +1579,7 @@ get_resilience_prob_dist <- function(fp_df, compl_df) {
   theoretical_saddle_index = sapply(theoretical_saddle, function(fp)
     which.min(abs(theoretical_prob_dist$x - fp)))
   
+  # divide stationary probability distribution at saddle point between basins for calculating variance and skewness around each mode (theoretical)
   theoretical_prob_dist_right =
     theoretical_prob_dist %>% slice(1:theoretical_saddle_index)
   theoretical_prob_dist_left =
@@ -1557,11 +1606,9 @@ get_resilience_prob_dist <- function(fp_df, compl_df) {
   
   # calculate the skewness around the mode (theoretical)
   theo_skewness_mode_right <-
-    sum(prob_values_theo_R * (x_values_theo_R - theo_mode_right) ^ 3) / (sum(prob_values_theo_R * (x_values_theo_R - theo_mode_right) ^
-                                                                               2)) ^ (3 / 2)
+    sum(prob_values_theo_R * (x_values_theo_R - theo_mode_right) ^ 3) / (sum(prob_values_theo_R * (x_values_theo_R - theo_mode_right) ^ 2)) ^ (3 / 2)
   theo_skewness_mode_left <-
-    sum(prob_values_theo_L * (x_values_theo_L - theo_mode_left) ^ 3) / (sum(prob_values_theo_L * (x_values_theo_L - theo_mode_left) ^
-                                                                              2)) ^ (3 / 2)
+    sum(prob_values_theo_L * (x_values_theo_L - theo_mode_left) ^ 3) / (sum(prob_values_theo_L * (x_values_theo_L - theo_mode_left) ^ 2)) ^ (3 / 2)
   if (identical(fp_df$color,
                 c(
                   "stable",
@@ -1605,11 +1652,10 @@ get_resilience_prob_dist <- function(fp_df, compl_df) {
     
     # calculate the skewness around the mode (estimated)
     est_skewness_mode_right <-
-      sum(prob_values_est_R * (x_values_est_R - est_mode_right) ^ 3) / (sum(prob_values_est_R * (x_values_est_R - est_mode_right) ^
-                                                                              2)) ^ (3 / 2)
+      sum(prob_values_est_R * (x_values_est_R - est_mode_right) ^ 3) / (sum(prob_values_est_R * (x_values_est_R - est_mode_right) ^ 2)) ^ (3 / 2)
     est_skewness_mode_left <-
-      sum(prob_values_est_L * (x_values_est_L - est_mode_left) ^ 3) / (sum(prob_values_est_L * (x_values_est_L - est_mode_left) ^
-                                                                             2)) ^ (3 / 2)
+      sum(prob_values_est_L * (x_values_est_L - est_mode_left) ^ 3) / (sum(prob_values_est_L * (x_values_est_L - est_mode_left) ^ 2)) ^ (3 / 2)
+    
   }else{
     est_var_mode_left = NULL
     est_var_mode_right = NULL
