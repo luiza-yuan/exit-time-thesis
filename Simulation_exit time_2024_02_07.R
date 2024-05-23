@@ -34,12 +34,20 @@
 rm(list = ls())
 graphics.off()
 
-# Create necessary directories
-# filepath_base = dirname(rstudioapi::getActiveDocumentContext()$path)
-filepath_base = "/Users/luizashen58/Library/CloudStorage/OneDrive-UvA/Exit Time Project Master's Thesis/May"
-setwd(filepath_base)
-filepath_figs = file.path(filepath_base, "Sample_figs_check") #figs_theoreticalET_scalecheck")
-filepath_est = file.path(filepath_base, "Sample_est_check")# "est_theoreticalET_scalecheck")
+# Get/set working directory
+if (interactive() &&
+    requireNamespace("rstudioapi", quietly = TRUE)) {
+  # RStudio-specific code
+  filepath_base <- dirname(rstudioapi::getActiveDocumentContext()$path)
+  setwd(filepath_base)
+} else {
+  # Alternative code for non-interactive environments (e.g. Snellius)
+  filepath_base <- getwd()  # Use the current working directory
+}
+
+# Create necessary directories for estimates and figures
+filepath_figs = file.path(filepath_base, "SLURM_test_figs") # Snellius
+filepath_est = file.path(filepath_base, "SLURM_test_est") # Snellius
 if (!dir.exists(filepath_figs)) {
   dir.create(filepath_figs, recursive = T)
 }
@@ -75,31 +83,31 @@ forloop = tidyr::expand_grid(
   scenario = c("2fps-balanced-deepening"), #"left-fp-gains-dominance" "2fps-balanced-deepening", "right-fp-gains-dominance" 
   strength_D2 = c(.3),
   sf = c(10), #c(10, 100),
-  N = c(1000), #c(500, 100000),
-  bins = c(100), #c(30, 40, 100),
+  N = c(500), #c(500, 100000),
+  bins = c(50), #c(30, 40, 100),
   interpol_steps = 50,# c(50, 100, 500),
   ntau = c(2), # c(3, 5, 10),
-  bw_sd = .3,
+  bw_sd = c(0.3),
   #10000
-  noise_iter = c(91), #c(1:5)
+  noise_iter = c(1:3), #c(1:5)
   # noise_iter_concat_times = 5
 ) %>% purrr::transpose() %>% unique()
 
 # Check each item in the forloop list and keep only the ones where N*sf = bins*100
-filtered_forloop <- list()
-for (i in seq_along(forloop)) {
-  if (forloop[[i]]$N * forloop[[i]]$sf == forloop[[i]]$bins * 100) {
-    filtered_forloop[[i]] <- forloop[[i]]
-  }
-}
-# Remove NULL elements from the list
-filtered_forloop <- filtered_forloop[!sapply(filtered_forloop, is.null)]
+# filtered_forloop <- list()
+# for (i in seq_along(forloop)) {
+#   if (forloop[[i]]$N * forloop[[i]]$sf == forloop[[i]]$bins * 100) {
+#     filtered_forloop[[i]] <- forloop[[i]]
+#   }
+# }
+# # Remove NULL elements from the list
+# filtered_forloop <- filtered_forloop[!sapply(filtered_forloop, is.null)]
 
 # Debug
 #datagen = "Langevin"
 nr_steps_bif = 3
 
-step_idx = 2
+step_idx = 1
 for_par=forloop[[1]]
 type_D2 = for_par$type_D2
 scenario = for_par$scenario
@@ -112,26 +120,8 @@ sf = for_par$sf
 N = for_par$N
 noise_iter = for_par$noise_iter
 add_to_x = .5
-rm(list = c("nr_steps_bif", "step_idx", "type_D2", "scenario", "mean_bin", "bw_sd", "ntau", "interpol_steps", "sf", "N", "noise_iter", "add_to_x", "bins", "i", "strength_D2" ,"basin", "D", "DD", "Ds", "est_Carp", "Pot", "pl_Carp", "stabs", "Theoretical_df", "yend", "yini", "xvec", "Ux"))
-
 # noise_iter_concat_times = for_par$noise_iter_concat_times
-
-# # Set up cluster
-# cl <- parallel::makeCluster(detectCores() - 1, type = "PSOCK")
-# doParallel::registerDoParallel(cl)
-# 
-# getDoParWorkers() #check how many workers 'foreach' is going to use
-
-# # Set up cluster (forking)
-cl <- parallel::makeForkCluster(detectCores() - 1) # using forking
-# cl <- parallel::makeForkCluster(6) # note only run this on Snellius!!!!!
-
-# # Set up cluster (no forking)
-# cl <- parallel::makeCluster(detectCores() - 1) # no forking
-# cl <- parallel::makeCluster(6) #note only run this on Snellius!!!!!
-
-doParallel::registerDoParallel(cl)
-getDoParWorkers() #check how many workers 'foreach' is going to use
+rm(list = c("nr_steps_bif", "step_idx", "for_par", "type_D2", "scenario", "bins", "strength_D2", "bw_sd", "ntau", "interpol_steps", "sf", "N", "noise_iter", "add_to_x", "noise_iter_concat_times"))
 
 # Functions
 functions <-
@@ -194,6 +184,17 @@ variables <-
     "noise_iter"
   )
 
+
+# # Set up cluster (forking)
+cl <- parallel::makeForkCluster(detectCores() - 1) # using forking
+
+# # Set up cluster (no forking)
+# cl <- parallel::makeCluster(detectCores() - 1) # no forking
+# cl <- makeCluster(no_cores, outfile = "cluster_log.txt")
+
+doParallel::registerDoParallel(cl)
+getDoParWorkers() #check how many workers 'foreach' is going to use
+
 # Loop through scenarios
 start_time <- Sys.time()
 foreach(for_par = forloop) %do% {
@@ -236,7 +237,7 @@ foreach(for_par = forloop) %do% {
         )
       ))
       
-      # if (!file.exists(paths$filepath_out)) {
+      if (!file.exists(paths$filepath_out)) {
       
       # Generate timeseries
       print("Generate timeseries")
@@ -284,12 +285,14 @@ foreach(for_par = forloop) %do% {
         "for_par",
         "forloop",
         "execution_time",
+        "filtered_out",
         "start_time",
         "end_time",
         "functions",
         "packages",
         "variables"
       )
+      
       filtered_out = out[!names(out) %in% variables_to_exclude]
       
       filtered_out[unlist(lapply(filtered_out, class)) == "function"] = NULL # Remove functions
@@ -297,12 +300,12 @@ foreach(for_par = forloop) %do% {
       saveRDS(filtered_out, paths$filepath_out)
       
       }
-      # out = readRDS(paths$filepath_out)
-      # print("Plot results")
-      # # new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
-      # new_plot_overview(out, paths$filepath_image)
-      # graphics.off()
-    # }
+      out = readRDS(paths$filepath_out)
+      # # print("Plot results")
+      # # # new_plot_overview(out, paths$filepath_image, plot_t = ifelse(N*sf < 100000, Inf, 100000))
+      new_plot_overview(out, paths$filepath_image)
+      graphics.off()
+    }
   })
 }
 end_time <- Sys.time()
@@ -311,7 +314,6 @@ print(execution_time)
 
 # Define log file path and append the execution time to the log file
 log_file <- "execution_time_log.txt"
-write(paste("Execution Time:", "For condition:", forloop[[1]]$N, "and", forloop[[1]]$sf, "for", length(forloop), "iterations is", execution_time, "\n", "mins"), file = log_file, append = TRUE)
+write(paste("Execution Time for condition: N =", forloop[[1]]$N, ", sf =", forloop[[1]]$sf, "for", length(forloop), "iterations is", round(difftime(end_time, start_time, units = "hours"), 3), "hours or", round(difftime(end_time, start_time, units = "mins"), 3), "minutes"), file = log_file, append = TRUE)
 
 parallel::stopCluster(cl) # End cluster  
-
