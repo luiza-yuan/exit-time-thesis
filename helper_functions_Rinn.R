@@ -425,7 +425,7 @@ est_D_Carp <- function(Ux,
   ) %>% mutate(source = factor(source, levels = c("Theoretical", "Estimated"), ordered = T))
   
   alt_metrics_potential = get_resilience_potential(fp_df = fp_df, compl_df = compl_df)
-  alt_metrics_prob_dist = get_resilience_prob_dist(fp_df = fp_df,compl_df = compl_df)
+  alt_metrics_prob_dist = get_resilience_prob_dist(Ux = Ux, bw_sd = bw_sd)
   
   return(
     list(
