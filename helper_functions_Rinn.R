@@ -1523,46 +1523,49 @@ get_resilience_potential <- function(fp_df, compl_df) {
 
 # Get variance and skewness around dominant modes of probability distribution of system states ("realizations")
 get_resilience_prob_dist <- function(Ux, bw_sd) {
-  # Get probability distribution of system states
-  prob_dist <- density(Ux, n = 1000, bw = bw_sd * sd(Ux))
   
-  # Extract the x and y values from the density estimate
-  x_values <- prob_dist$x
-  y_values <- prob_dist$y
+  # Estimate the density
+  density_estimate <- density(Ux)
   
-  # Find the indice of the saddle point (local minima)
-  saddle_point_index <- which(diff(sign(diff(y_values))) == 2) + 1
+  # Extract x and y values
+  x_values <- density_estimate$x
+  y_values <- density_estimate$y
   
-  # Divide probability distribution at saddle point to calculate variance and skewness around the dominant modes
-  x_values_est_L <- x_values[1:saddle_point_index]
-  x_values_est_R <- x_values[saddle_point_index:length(x_values)]
+  # Identify the modes
+  find_modes <- function(x, y) {
+    # Find local maxima
+    local_maxima <- which(diff(sign(diff(y))) == -2) + 1
+    modes <- x[local_maxima]
+    return(modes)
+  }
   
-  prob_values_est_L <- y_values[1:saddle_point_index]
-  prob_values_est_R <- y_values[saddle_point_index:length(y_values)]
+  modes <- find_modes(x_values, y_values)
   
-  # Calculate variance around dominant modes (left and right)
-  est_mode_left = x_values_est_L[which.max(prob_values_est_L)]
-  est_var_mode_left =
-    sum(prob_values_est_L * (x_values_est_L - est_mode_left) ^ 2)
+  # Calculate the variance and skewness around each mode
+  calculate_moments <- function(x, y, mode) {
+    variance <- sum((x - mode) ^ 2 * y) / sum(y)
+    skewness <- sum((x - mode) ^ 3 * y) / sum(y)
+    skewness <- skewness / (variance ^ (3 / 2))
+    return(list(variance = variance, skewness = skewness))
+  }
   
-  est_mode_right = x_values_est_R[which.max(prob_values_est_R)]
-  est_var_mode_right =
-    sum(prob_values_est_R * (x_values_est_R - est_mode_right) ^ 2)
+  moments <- lapply(modes, function(mode)
+    calculate_moments(x_values, y_values, mode))
   
-  # Calculate the skewness around dominant modes (left and right)
-  est_skewness_mode_right <-
-    sum(prob_values_est_R * (x_values_est_R - est_mode_right) ^ 3) / (sum(prob_values_est_R * (x_values_est_R - est_mode_right) ^ 2)) ^ (3 / 2)
-  est_skewness_mode_left <-
-    sum(prob_values_est_L * (x_values_est_L - est_mode_left) ^ 3) / (sum(prob_values_est_L * (x_values_est_L - est_mode_left) ^ 2)) ^ (3 / 2)
+  # # Print the results
+  # for (i in 1:length(modes)) {
+  #   cat(paste("Mode:", modes[i], "\n"))
+  #   cat(paste("Variance around the mode:", moments[[i]]$variance, "\n"))
+  #   cat(paste("Skewness around the mode:", moments[[i]]$skewness, "\n\n"))
+  # }
   
   return(
     list(
-      est_var_mode_left = est_var_mode_left,
-      est_var_mode_right = est_var_mode_right,
-      est_skewness_mode_left = est_skewness_mode_left,
-      est_skewness_mode_right = est_skewness_mode_right
-    )
-  )
+      est_var_mode_left = moments[[1]]$variance,
+      est_var_mode_right = moments[[1]]$skewness,
+      est_skewness_mode_left = moments[[2]]$variance,
+      est_skewness_mode_right = moments[[2]]$skewness
+    ))
 }
 
 
