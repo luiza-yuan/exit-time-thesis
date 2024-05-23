@@ -394,7 +394,7 @@ est_D_Carp <- function(Ux,
     fp_df = rbind(data.frame(xintercept = stabs$fps,
                              color = stabs$stab_fps, source = "Theoretical"),
                   data.frame(xintercept = DD$xeq,
-                             color = Pot$stab_pot_xeq, source = "Estimated")) %>%
+                             color = Pot$stab_xeq, source = "Estimated")) %>%
       mutate(source = factor(source, levels = c("Theoretical", "Estimated"), ordered = T))
   }
   
