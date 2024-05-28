@@ -302,7 +302,7 @@ est_D_Carp <- function(Ux,
                        sf,
                        D,
                        stabs,
-                       Tstep,
+                       # Tstep,
                        ntau,
                        bins,
                        bw_sd,
@@ -315,7 +315,7 @@ est_D_Carp <- function(Ux,
     ntau = ntau,
     sf = sf, 
     bin_min = 50,
-    Tstep = Tstep,
+    # Tstep = Tstep,
     bw_sd = bw_sd
   )
   
@@ -671,11 +671,12 @@ est_D_Carp <- function(Ux,
 #   ))
 # }
 
-Langevin1D_adapted <- function(Ux, #changed from "data"
+## Langevin1D function adapted from C++ source code (can be found on https://github.com/cran/Langevin/blob/master/src/Langevin1D.cpp)
+Langevin1D_adapted <- function(Ux, 
                                bins, 
-                               ntau, #adapted (originally "steps")
+                               ntau, 
                                sf, 
-                               bw_sd, #added 
+                               bw_sd,
                                bin_min = 50
 ) {
   # if (!exists("omp_get_num_procs")) {
@@ -686,7 +687,10 @@ Langevin1D_adapted <- function(Ux, #changed from "data"
   #   stop("reqThreads should be numeric")
   # }
   
-  steps <- 1:ntau
+  # Create vector of different lags to be used when calculating the differences (increments) in the data
+  steps <- 1:ntau 
+  
+  # Specify bandwidth used for obtaining smoothed D1 and D2 estimates
   bw <- bw_sd * sd(Ux)
   
   # haveCores <- as.integer(Sys.getenv("OMP_NUM_THREADS", 1))
@@ -717,9 +721,14 @@ Langevin1D_adapted <- function(Ux, #changed from "data"
     len_step <- numeric(nsteps)
     len_bin <- 0
     
+    # For each data point and each lag size, calculate the increment as the difference between the data point at the current position and the data point at the position offset by the lag size (for all lag sizes up to the maximum timelag specified by ntau)
+    
+    #Iterate over each data point (n)
     for (n in 1:(length(Ux) - max(steps))) {
       if (Ux[n] >= U[i] && Ux[n] < U[i + 1] && is.finite(Ux[n])) {
+        # Iterate over each time lag (s)
         for (s in 1:nsteps) {
+          # For each time lag, the increment (inc) is calculated as the difference between the data point at position n + steps[s] and the data point at position n. Then, the increments are used to accumulate the first moment (sum_m1), second moment (sum_m2), and fourth moment (sum_m4).
           if (is.finite(Ux[n + steps[s]])) {
             inc <- Ux[n + steps[s]] - Ux[n]
             sum_m1[s] <- sum_m1[s] + inc
@@ -737,20 +746,25 @@ Langevin1D_adapted <- function(Ux, #changed from "data"
     dens[i] <- max(len_step)
     
     if (len_bin >= bin_min) {
+      # Average each conditional moment by the number of valid increments to obtain the average moments
       M1[i, ] <- sum_m1 / len_step
       M2[i, ] <- sum_m2 / len_step
       M4[i, ] <- sum_m4 / len_step
       
+      # Calculate errors for the first and second conditional moments
       eM1[i, ] <- sqrt((M2[i, ] - M1[i, ]^2) / len_step)
       eM2[i, ] <- sqrt((M4[i, ] - M2[i, ]^2) / len_step)
       
+      # Use linear regression to estimate drift coefficient (first conditional moment)
       coef <- lm(M1[i, ] ~ steps, weights = 1 / eM1[i, ])$coefficients
       D1[i] <- sf * coef[2]
       
+      # Use linear regression to estimate diffusion coefficient (second conditional moment)
       y <- M2[i, ] - (coef[2] * steps)^2
       coef <- lm(y ~ steps, weights = 1 / eM2[i, ])$coefficients
       D2[i] <- sf * coef[2] / 2
       
+      # Use linear regression to estimate fourth conditional moment
       coef <- lm(M4[i, ] ~ steps)$coefficients
       D4[i] <- sf * coef[2] / 24
       
@@ -759,7 +773,7 @@ Langevin1D_adapted <- function(Ux, #changed from "data"
     }
   }
   
-  # added: fill values that couldn't be estimated with NA's instead of 0's
+  # Added: Fill values that couldn't be estimated with NA's instead of 0's
   replace_near_zero_with_na <- function(vec, tol) {
     vec[abs(vec) < tol] <- NA
     return(vec)
@@ -773,9 +787,9 @@ Langevin1D_adapted <- function(Ux, #changed from "data"
   eD1 <- replace_near_zero_with_na(eD1, tolerance)
   eD2 <- replace_near_zero_with_na(eD2, tolerance)
   
-  # # added!!! (not in original Langevin1D)
-  # # remove NA's (where D1 and D2 couldn't be estimated) before smoothing
-  D1_idx = which(!is.na(D1))  #changed from is.na from the original apply_DDbintau
+  # Added: Smooth D1 and D2 estimates (not in original Langevin::Langevin1D)
+  # Remove NA's (where D1 and D2 couldn't be estimated) before smoothing
+  D1_idx = which(!is.na(D1))  
   D2_idx = which(!is.na(D2))
   idx = sort(
     dplyr::intersect(D1_idx,D2_idx)
@@ -790,14 +804,14 @@ Langevin1D_adapted <- function(Ux, #changed from "data"
                 x.points=mean_bin)
   
   ret <- list(
-    D1 = D1,
-    D1s = D1s, #smoothed
+    D1 = D1, # raw estimates (same output as from Langevin::Langevin1D function)
+    D1s = D1s, # smoothed estimates 
     eD1 = eD1,
-    D2 = D2,
-    D2s = D2s, #smoothed
+    D2 = D2, # raw estimates (same output as from Langevin::Langevin1D function)
+    D2s = D2s, # smoothed estimates 
     eD2 = eD2,
     D4 = D4,
-    mean_bin = mean_bin,
+    mean_bin = mean_bin, 
     density = dens,
     M1 = M1,
     eM1 = eM1,
@@ -817,7 +831,7 @@ apply_Langevin1D_adapted <- function(Ux,
                                      ntau,
                                      sf, 
                                      bin_min = 50,
-                                     Tstep,
+                                     # Tstep,
                                      bw_sd = 0.3) {
   
   # Set up for binning method (as per Carpenter, 2022)
@@ -1783,7 +1797,7 @@ new_plot_overview <-
       # The title includes the scenario, type_D2, strength_D2, sf, and N 
       title_plot = latex2exp::TeX(
         sprintf(
-          "%s; %s $D_2$ (strength: %.2f); $f_s$ = %d, $N$ = %d",
+          "%s; %s $D_2$ (strength: %.2f); $f_s$ = %.2f, $N$ = %d",
           stringr::str_to_title(scenario),
           stringr::str_to_title(type_D2),
           strength_D2,
