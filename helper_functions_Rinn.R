@@ -41,6 +41,30 @@ generate_Langevin <- function(N,
   }
 }
 
+
+# Function for downsampling
+downsample_Langevin <- function(Ux, # Timeseries (high resolution)
+                                n_points # Length of desired final timeseries (downsampled)
+) {
+  # Calculate the interval for downsampling: This represents the number of data points in the original time series that will be represented by a single data point in the downsampled time series.
+  interval <- length(Ux) / (n_points) 
+  
+  # Generate a sequence of indices for downsampling: This creates a vector of evenly spaced indices that will be used to extract data points from the original time series.
+  selected_indices <- seq(1, length(Ux), by = interval) 
+  
+  # Extract the downsampled time series using the selected indices
+  downsampled_Ux <- Ux[selected_indices] 
+  
+  # Calculate the new "sampling frequency" after downsampling 
+  new_frequency <- frequency(Ux) / interval 
+  
+  # Create a new time-series object with the downsampled data and the new sampling frequency
+  downsampled_Ux <- ts(downsampled_Ux, frequency = new_frequency) 
+  
+  # Return the downsampled time series
+  return(downsampled_Ux) 
+}
+
 # Polynomial (third-order)
 poly3 <-
   function(x, a0, a1, a2, a3) {
@@ -2289,7 +2313,7 @@ setup_filepaths <- function(filepath_est,
     filepath_est,
     sprintf("%s", scenario),
     sprintf("D2strength_%s", strength_D2),
-    # sprintf("%s-D2", type_D2), # removed since only constant noise
+    sprintf("%s-D2", type_D2), 
     sprintf("N%s", N), # added
     sprintf("sf%s", sf), # added
     sprintf("tau%s", ntau), # added
@@ -2320,7 +2344,7 @@ setup_filepaths <- function(filepath_est,
     filepath_figs,
     sprintf("%s", scenario),
     sprintf("D2strength_%s", strength_D2),
-    # sprintf("%s-D2", type_D2), # removed since only constant noise
+    sprintf("%s-D2", type_D2),
     sprintf("N%s", N), # added
     sprintf("sf%s", sf), # added
     sprintf("tau%s", ntau), # added
