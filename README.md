@@ -1,3 +1,5 @@
 # exit-time-thesis
-This is a line from RStudio
-Line added from GitHub
+Psychological systems are characterized by shifts between multiple stable states, such as relapse in depression or radicalization in attitudes. Mean exit time quantifies resilience in such systems as the expected time needed to transition from one basin of attraction to another and has been recently successfully applied in ecology to study climate change and lake ecosystems. 
+Via a simulation study, we investigate how the metric can be applied to psychological data, given lower data resolution and violations to assumptions of stationarity and Markovian process. Additionally, it is tested whether under strong theoretical assumption of analogous stability landscape, longer time-series data can be obtained via concatenation. The utility of mean exit time is compared with other resilience metrics, such as potential depth, distance to basin threshold, and variance under varying conditions (e.g. timeseries length, landscape type, noise intensity). Lastly, mean exit time and alternative resilience metrics are applied empirically to two datasets: one from individuals with major depressive disorder and another from the general population. 
+
+
