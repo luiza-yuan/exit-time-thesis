@@ -1,6 +1,6 @@
-# Step 1: Simulate timeseries and estimate mean exit time and alternative resilience metrics using Langevin approach
+# Timeseries simulation and estimation of mean exit time and alternative resilience metrics using the Langevin approach
 # When simulating the timeseries, we first generate a high resolution timeseries close to the conditions of Arani et al. (2021), with 12000 timeunits with timestep of 0.0001. This forms the "complete" timeseries (e.g. one can imagine this as the complete timeseries of an individual). From here, we downsample before conducting the analysis. This is similar to in real life, when we take only a sample of the complete timeseries when collecting data. 
-# As an example below, after burning the first 10 timeunits datapoints, or first 10,000 datapoints (as best practice to ensure convergence for stationarity and Markovian process), we take every 200th datapoint. In other words, for each timeunit, we now have "timestep" of 0.2. 
+# As an example below, after burning the first 10,000 datapoints (as best practice to ensure convergence for stationarity and Markovian process), we take every 200th datapoint. In other words, for each timeunit, we now have "timestep" of 0.2. 
 
 # Set working directory
 rm(list = ls())
