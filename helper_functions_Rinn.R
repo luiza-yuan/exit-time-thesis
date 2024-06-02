@@ -43,26 +43,20 @@ generate_Langevin <- function(N,
 
 
 # Function for downsampling
-downsample_Langevin <- function(Ux, # Timeseries (high resolution)
-                                n_points # Length of desired final timeseries (downsampled)
-) {
-  # Calculate the interval for downsampling: This represents the number of data points in the original time series that will be represented by a single data point in the downsampled time series.
-  interval <- length(Ux) / (n_points) 
+downsample_Langevin <- function(Ux, interval, timeseries_length) {
+  # interval <- length(Ux) / (n_points)
+  timeunits = timeseries_length/(frequency(Ux)/interval)
   
-  # Generate a sequence of indices for downsampling: This creates a vector of evenly spaced indices that will be used to extract data points from the original time series.
-  selected_indices <- seq(1, length(Ux), by = interval) 
+  # Keep track of "new sampling frequency"
+  new_frequency <- frequency(Ux) / interval
   
-  # Extract the downsampled time series using the selected indices
-  downsampled_Ux <- Ux[selected_indices] 
+  selected_indices <- seq(1, length(Ux), by = interval)
+  downsampled_Ux <- Ux[selected_indices]
   
-  # Calculate the new "sampling frequency" after downsampling 
-  new_frequency <- frequency(Ux) / interval 
+  truncated_Ux <- downsampled_Ux[1: (timeunits*new_frequency)]
   
-  # Create a new time-series object with the downsampled data and the new sampling frequency
-  downsampled_Ux <- ts(downsampled_Ux, frequency = new_frequency) 
-  
-  # Return the downsampled time series
-  return(downsampled_Ux) 
+  final_Ux <- ts(truncated_Ux, frequency = new_frequency)
+  return(final_Ux)
 }
 
 # Polynomial (third-order)
