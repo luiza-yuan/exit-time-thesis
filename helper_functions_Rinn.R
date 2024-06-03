@@ -111,8 +111,7 @@ get_D <- function(nr_steps_bif,
                   # )[1],
                   type_D2,
                   # = c("constant", "quadratic")[1],
-                  strength_D2_constant, 
-                  strength_D2_quad) {
+                  strength_D2) {
   # if (scenario == "1fp") {
   #   # alphas = 0
   #   # betas = 1
@@ -199,9 +198,9 @@ get_D <- function(nr_steps_bif,
     # d12 = 0,
     # d11 = betas,
     # d10 = alphas,
-    d22 = d22 * strength_D2_quad,
+    d22 = d22 * strength_D2,
     d21 = d21,
-    d20 = d20 * strength_D2_constant
+    d20 = d20 * strength_D2
   )  %>% purrr::transpose() %>% unique() %>%
     # In case of no parameter change, repeat same sequence
     rep(ifelse(length(.) == 1, nr_steps_bif, 1))
@@ -328,14 +327,14 @@ est_D_Carp <- function(Ux,
                        interpol_steps, 
                        add_to_x = .5) {
   # Estimate drift and diffusion
-  DD = apply_Langevin1D_adapted(
+  DD = Langevin1D_adapted(
     Ux = Ux,
     bins = bins,
     ntau = ntau,
     sf = sf, 
-    bin_min = 50,
     # Tstep = Tstep,
-    bw_sd = bw_sd
+    bw_sd = bw_sd,
+    bin_min = 50
   )
   
   # Create an interpolation vector specifying points on the x-axis. Exclude the outer edges of the data and make sure the interpolation vector falls within the range of the drift and diffusion function by a margin
@@ -351,7 +350,7 @@ est_D_Carp <- function(Ux,
   Pot = get_potential(
     D1s = DD$D1s,
     D2s = DD$D2s,
-    xeq = DD$xeq,
+    # xeq = DD$xeq,
     interpol_steps = interpol_steps,
     xvec = xvec
   )
@@ -380,14 +379,14 @@ est_D_Carp <- function(Ux,
     EstimatedExitTime = get_exit_time(
       D1s = DD$D1s,
       D2s = DD$D2s,
-      xeq = DD$xeq, # fixed points estimated from D1
+      xeq = Pot$xeq, # fixed points estimated from drift
       xvec = xvec, # interpolation vector specifying points on the x-axis
       interpol_steps = interpol_steps
     )
     
     fp_df = rbind(data.frame(xintercept = stabs$fps,
                              color = stabs$stab_fps, source = "Theoretical"),
-                  data.frame(xintercept = DD$xeq,
+                  data.frame(xintercept = Pot$xeq,
                              color = Pot$stab_xeq, source = "Estimated")) %>%
       mutate(source = factor(source, levels = c("Theoretical", "Estimated"), ordered = T))
     
@@ -412,18 +411,18 @@ est_D_Carp <- function(Ux,
     
     fp_df = rbind(data.frame(xintercept = stabs$fps,
                              color = stabs$stab_fps, source = "Theoretical"),
-                  data.frame(xintercept = DD$xeq,
+                  data.frame(xintercept = Pot$xeq, # fixed points estimated from drift
                              color = Pot$stab_xeq, source = "Estimated")) %>%
       mutate(source = factor(source, levels = c("Theoretical", "Estimated"), ordered = T))
   }
   
   # Format results (estimated D1 & D2, effective potential)
-  est_df_Rinn = data.frame(
-    x = DD$bin.mid,
-    D1 = DD$D1s$y,
-    D2 = DD$D2s$y
-  ) %>% tidyr::gather(variable, value,-x) %>%
-    dplyr::mutate(err = NA)
+  # est_df_Rinn = data.frame(
+  #   x = DD$bin.mid,
+  #   D1 = DD$D1s$y,
+  #   D2 = DD$D2s$y
+  # ) %>% tidyr::gather(variable, value,-x) %>%
+  #   dplyr::mutate(err = NA)
   Pot_df = data.frame(
     x = Pot$xvec,
     negPF = Pot$negPF,
@@ -438,7 +437,7 @@ est_D_Carp <- function(Ux,
   compl_df = rbind(Theoretical_df %>% mutate(source = "Theoretical", err = NA),
                    rbind(
                      # est_df_Carp,
-                         Pot_df) %>% mutate(source = "Estimated"),
+                     Pot_df) %>% mutate(source = "Estimated"),
                    TheoreticalExitTime$ET_df %>% mutate(source = "Theoretical"),
                    EstimatedExitTime$ET_df %>% mutate(source = "Estimated")
   ) %>% mutate(source = factor(source, levels = c("Theoretical", "Estimated"), ordered = T))
@@ -449,15 +448,15 @@ est_D_Carp <- function(Ux,
   return(
     list(
       DD = DD, 
-      est_df_Rinn = est_df_Rinn,
+      # est_df_Rinn = est_df_Rinn,
       compl_df = compl_df,
       fp_df = fp_df,
-      xeq = DD$xeq,
+      xeq = Pot$pot_xeq,
       alt_metrics_potential = alt_metrics_potential,
       alt_metrics_prob_dist = alt_metrics_prob_dist,
       # est_df_Carp = est_df_Carp,
       # Pot_df = Pot_df,
-      stab_xeq = Pot$stab_xeq,
+      stab_xeq = Pot$stab_pot_xeq,
       Dratio = Pot$Dratio,
       D1D2 = Pot$D1D2,
       D1D2adj = Pot$D1D2adj,
@@ -808,13 +807,13 @@ Langevin1D_adapted <- function(Ux,
   
   # Added: Smooth D1 and D2 estimates (not in original Langevin::Langevin1D)
   # Remove NA's (where D1 and D2 couldn't be estimated) before smoothing
-  D1_idx = which(!is.na(D1))  
-  D2_idx = which(!is.na(D2))
-  idx = sort(
-    dplyr::intersect(D1_idx,D2_idx)
-  )
-  D1_no_na = D1[idx]
-  D2_no_na = D2[idx]
+  # D1_idx = which(!is.na(D1))  
+  # D2_idx = which(!is.na(D2))
+  # idx = sort(
+  #   dplyr::intersect(D1_idx,D2_idx)
+  # )
+  # D1_no_na = D1[idx]
+  # D2_no_na = D2[idx]
   
   # X01 = #Xvar lagged by tau???
   D1s = ksmooth(x= mean_bin,y= D1,kernel= 'normal',bandwidth= bw,
@@ -822,12 +821,18 @@ Langevin1D_adapted <- function(Ux,
   D2s = ksmooth(x= mean_bin ,y= D2,kernel= 'normal',bandwidth=bw,
                 x.points=mean_bin)
   
+  # # Smoothed with NA repeats for plotting CI
+  # D1s_CI = ksmooth(x = mean_bin[idx], y = D1_no_na, kernel = 'normal', bandwidth = bw)
+  # D2s_CI = ksmooth(x = mean_bin[idx], y = D2_no_na, kernel = 'normal', bandwidth = bw)
+  
   ret <- list(
     D1 = D1, # raw estimates (same output as from Langevin::Langevin1D function)
     D1s = D1s, # smoothed estimates 
+    # D1s_CI = D1s_CI, # remove?
     eD1 = eD1,
     D2 = D2, # raw estimates (same output as from Langevin::Langevin1D function)
     D2s = D2s, # smoothed estimates 
+    # D2s_CI = D2s_CI, # remove?
     eD2 = eD2,
     D4 = D4,
     mean_bin = mean_bin, 
@@ -844,92 +849,92 @@ Langevin1D_adapted <- function(Ux,
   return(ret)
 }
 
-# apply Langevin1D_adapted
-apply_Langevin1D_adapted <- function(Ux,
-                                     bins,
-                                     ntau,
-                                     sf, 
-                                     bin_min = 50,
-                                     # Tstep,
-                                     bw_sd = 0.3) {
-  
-  # Set up for binning method (as per Carpenter, 2022)
-  # bw <-
-  #   bw_sd * sd(Ux)  # try bandwidth between 0.1*sd and 0.5*sd (according to Carpenter, 2022)
-  
-  # # Note that the bw also cuts of the beginning and end of the x vector. Make sure the bandwidth is not so large that there is no data left:
-  # while ((bins / 10 * bw) > abs(diff(range(Ux)))) {
-  #   bw_sd = bw_sd - .05
-  #   bw <- bw_sd * sd(Ux)  # try between 0.1*sd and 0.5*sd
-  # }
-  DDLangout = Langevin1D_adapted(Ux, bins, ntau, sf, bw_sd, bin_min = 50)
-  
-  # Extract raw output (instead of smoothed)
-  # D1 = DDLangout$D1
-  # D2 = DDLangout$D2
-  # bin.mid = DDLangout$mean_bin
-  # 
-  # # Remove NAs - locations in either the drift or diffusion function where they couldn't be estimated
-  # D1_idx = which(!is.na(D1)) #changed from is.na from the original apply_DDbintau
-  # D2_idx = which(!is.na(D2))
-  # idx = sort(
-  #   dplyr::intersect(D1_idx,D2_idx)
-  # )
-  # D1 = list(x = bin.mid[idx],
-  #           # y = (D1s$y[idx])*sf, # changed: multiply by sf for scaling
-  #           y = D1[idx])
-  # D2 = list(x = bin.mid[idx],
-  #           # y = ((D2s$y[idx])*sf)/2, # changed: multiply by sf and divide by 2 for scaling
-  #           y = D2[idx])
-  # bin.mid = bin.mid[idx]
-  
-  # # Extract smoothed output
-  D1s = DDLangout$D1s
-  D2s = DDLangout$D2s
-  # sigmas = DDout[[3]] # = sqrt(2*D2)
-  bin.mid = DDLangout$mean_bin
-
-  # Remove NAs and zeros
-  find_idx <- function(x, tolerance = 1e-8) {
-    na_idx <- which(!is.na(x))
-    zero_idx <- which(abs(x) > tolerance)
-    idx <- intersect(na_idx, zero_idx)
-    return(idx)
-  }
-  D1sx_idx <- find_idx(D1s$x)
-  D1sy_idx <- find_idx(D1s$y)
-  D2sx_idx <- find_idx(D2s$x)
-  D2sy_idx <- find_idx(D2s$y)
-  idx = sort(dplyr::intersect(
-    dplyr::intersect(D1sx_idx, D1sy_idx),
-    dplyr::intersect(D2sx_idx, D2sy_idx)
-  ))
-
-  D1s = list(x = D1s$x[idx],
-             # y = (D1s$y[idx])*sf, # changed: multiply by sf for scaling
-             y = D1s$y[idx])
-  D2s = list(x = D2s$x[idx],
-             # y = ((D2s$y[idx])*sf)/2, # changed: multiply by sf and divide by 2 for scaling
-             y = D2s$y[idx])
-  bin.mid = bin.mid[idx]
-  
-  # Find equilibria - where D1 crosses x=0
-  sdrift = sign(D1s$y)
-  dsdrift = c(0,-diff(sdrift))
-  ixeq = which(dsdrift != 0)  # indices of the equilibria
-  xeq = bin.mid[ixeq]
-
-  # print('Equilibria from D1 estimate', quote = F)
-  # print(xeq[order(xeq)], quote = F)
-  return(list(
-    D1s = D1s,
-    D2s = D2s,
-    DDLangout = DDLangout,
-    bin.mid = bin.mid,
-    xeq = xeq,
-    ixeq = ixeq
-  ))
-}
+# # apply Langevin1D_adapted
+# apply_Langevin1D_adapted <- function(Ux,
+#                                      bins,
+#                                      ntau,
+#                                      sf, 
+#                                      bin_min = 50,
+#                                      # Tstep,
+#                                      bw_sd = 0.3) {
+#   
+#   # Set up for binning method (as per Carpenter, 2022)
+#   # bw <-
+#   #   bw_sd * sd(Ux)  # try bandwidth between 0.1*sd and 0.5*sd (according to Carpenter, 2022)
+#   
+#   # # Note that the bw also cuts of the beginning and end of the x vector. Make sure the bandwidth is not so large that there is no data left:
+#   # while ((bins / 10 * bw) > abs(diff(range(Ux)))) {
+#   #   bw_sd = bw_sd - .05
+#   #   bw <- bw_sd * sd(Ux)  # try between 0.1*sd and 0.5*sd
+#   # }
+#   DDLangout = Langevin1D_adapted(Ux, bins, ntau, sf, bw_sd, bin_min = 50)
+#   
+#   # Extract raw output (instead of smoothed)
+#   # D1 = DDLangout$D1
+#   # D2 = DDLangout$D2
+#   # bin.mid = DDLangout$mean_bin
+#   # 
+#   # # Remove NAs - locations in either the drift or diffusion function where they couldn't be estimated
+#   # D1_idx = which(!is.na(D1)) #changed from is.na from the original apply_DDbintau
+#   # D2_idx = which(!is.na(D2))
+#   # idx = sort(
+#   #   dplyr::intersect(D1_idx,D2_idx)
+#   # )
+#   # D1 = list(x = bin.mid[idx],
+#   #           # y = (D1s$y[idx])*sf, # changed: multiply by sf for scaling
+#   #           y = D1[idx])
+#   # D2 = list(x = bin.mid[idx],
+#   #           # y = ((D2s$y[idx])*sf)/2, # changed: multiply by sf and divide by 2 for scaling
+#   #           y = D2[idx])
+#   # bin.mid = bin.mid[idx]
+#   
+#   # # Extract smoothed output
+#   D1s = DDLangout$D1s
+#   D2s = DDLangout$D2s
+#   # sigmas = DDout[[3]] # = sqrt(2*D2)
+#   bin.mid = DDLangout$mean_bin
+#   
+#   # Remove NAs and zeros
+#   find_idx <- function(x, tolerance = 1e-8) {
+#     na_idx <- which(!is.na(x))
+#     zero_idx <- which(abs(x) > tolerance)
+#     idx <- intersect(na_idx, zero_idx)
+#     return(idx)
+#   }
+#   D1sx_idx <- find_idx(D1s$x)
+#   D1sy_idx <- find_idx(D1s$y)
+#   D2sx_idx <- find_idx(D2s$x)
+#   D2sy_idx <- find_idx(D2s$y)
+#   idx = sort(dplyr::intersect(
+#     dplyr::intersect(D1sx_idx, D1sy_idx),
+#     dplyr::intersect(D2sx_idx, D2sy_idx)
+#   ))
+#   
+#   D1s = list(x = D1s$x[idx],
+#              # y = (D1s$y[idx])*sf, # changed: multiply by sf for scaling
+#              y = D1s$y[idx])
+#   D2s = list(x = D2s$x[idx],
+#              # y = ((D2s$y[idx])*sf)/2, # changed: multiply by sf and divide by 2 for scaling
+#              y = D2s$y[idx])
+#   bin.mid = bin.mid[idx]
+#   
+#   # Find equilibria - where D1 crosses x=0
+#   sdrift = sign(D1s$y)
+#   dsdrift = c(0,-diff(sdrift))
+#   ixeq = which(dsdrift != 0)  # indices of the equilibria
+#   xeq = bin.mid[ixeq]
+#   
+#   # print('Equilibria from D1 estimate', quote = F)
+#   # print(xeq[order(xeq)], quote = F)
+#   return(list(
+#     D1s = D1s,
+#     D2s = D2s,
+#     DDLangout = DDLangout,
+#     bin.mid = bin.mid,
+#     xeq = xeq,
+#     ixeq = ixeq
+#   ))
+# }
 
 # Interpolate with approxfun() for D1 and D2
 D1fun = function(x, D1s) {
@@ -1016,13 +1021,11 @@ get_effective_potential = function(D1s,
 
 get_potential = function(D1s,
                          D2s,
-                         xeq,
+                         # xeq,
                          interpol_steps,
                          xvec) {
-  # Step 4 Carpenter 2022
-  # Set up for bvp
   
-  # plot drift and diffusion (estimated)
+  # Interpolate drift and diffusion (estimated)
   # xvec = seq(avec[1]-0.1,xeq[3]+0.2,length.out=100) # original range
   drift = rep(0, interpol_steps)
   diff = rep(0, interpol_steps)
@@ -1053,32 +1056,38 @@ get_potential = function(D1s,
   idx_xeq_PF = c(hills_idx, valleys_idx)
   pot_xeq = sort(xvec[c(idx_xeq_PF)])
   
-  # Stability of equilibria (from potential estimate)
+  # Stability of equilibria 
   names_xeq_PF = c(rep("unstable", length(hills_idx)), rep("stable", length(valleys_idx)))
   
-  # Find closest index for pot_xeq (equilibria from potential estimate)
+  # Stability of pot_xeq (equilibria from potential estimate)
   stab_pot_xeq = plyr::laply(pot_xeq, function(eq) {
     idx = which.min(abs(xvec - eq))
     idx_match = which.min(abs(idx_xeq_PF - idx))
     return(names_xeq_PF[idx_match])
   })
   
-  # Find closest index for xeq (equilibria from D1 estimate)
+  # Equilibria from drift estimate (i.e. where D1 crosses x=0) 
+  sdrift = sign(drift)
+  dsdrift = c(0,-diff(sdrift))
+  ixeq = which(dsdrift != 0)  # indices of the equilibria
+  xeq = xvec[ixeq]
+  
+  # Stability of xeq (equilibria from D1 estimate)
   stab_xeq = plyr::laply(xeq, function(eq) {
     idx = which.min(abs(xvec - eq))
     idx_match = which.min(abs(idx_xeq_PF - idx))
     return(names_xeq_PF[idx_match])
   })
   
-  print('Equilibria from Potential estimate', quote = F)
-  print(pot_xeq, quote = F)
-  print('Stabilities of equilibria from Potential estimate', quote = F)
-  print(stab_pot_xeq, quote = F)
-  
-  print('Equilibria from D1 estimate', quote = F)
-  print(xeq[order(xeq)], quote = F)
-  print('Stabilities of equilibria from D1 estimate', quote = F)
-  print(stab_xeq, quote = F) # this is the stability of equilibria from D1 estimate!!!
+  # print('Equilibria from Potential estimate', quote = F)
+  # print(pot_xeq, quote = F)
+  # print('Stabilities of equilibria from Potential estimate', quote = F)
+  # print(stab_pot_xeq, quote = F)
+  # 
+  # print('Equilibria from D1 estimate', quote = F)
+  # print(xeq[order(xeq)], quote = F)
+  # print('Stabilities of equilibria from D1 estimate', quote = F)
+  # print(stab_xeq, quote = F) # this is the stability of equilibria from D1 estimate!!!
   
   # quartz()
   # par(
@@ -1272,13 +1281,13 @@ get_potential = function(D1s,
   
   return(
     utils::modifyList(list(
-      drift = drift,
-      diff = diff,
+      drift = drift, # interpolated drift 
+      diff = diff, # interpolated diffusion
       xvec = xvec,
-      # xeq = xeq, 
-      stab_xeq = stab_xeq,
-      stab_pot_xeq = stab_pot_xeq, 
-      pot_xeq = pot_xeq, 
+      xeq = xeq, # equilibria from drift estimate
+      stab_xeq = stab_xeq, # stabilities of equilibria from drift estimate
+      pot_xeq = pot_xeq, # equilibria from potential estimate
+      stab_pot_xeq = stab_pot_xeq, # stabilities of equilibria from potential estimate
       negPF = negPF
     ), EP)
   )
@@ -1816,12 +1825,13 @@ new_plot_overview <-
       # The title includes the scenario, type_D2, strength_D2, sf, and N 
       title_plot = latex2exp::TeX(
         sprintf(
-          "%s; %s $D_2$ (strength: %.2f); $f_s$ = %.2f, $N$ = %d",
+          "%s; %s $D_2$ (strength: %.2f); $length_timeseries$ = %d, $interval$ = %d (%d samples/timeunit)",
           stringr::str_to_title(scenario),
           stringr::str_to_title(type_D2),
           strength_D2,
-          sf,
-          N
+          timeseries_length,
+          interval,
+          frequency(Ux)
         ),
         bold = TRUE
       )
@@ -1874,7 +1884,7 @@ new_plot_overview <-
       # Plot timeseries (pl_ts) 
       pl_ts = 
         # Initialize the ggplot with a data frame containing time and Ux values
-        ggplot2::ggplot(data.frame(t = 1:length(Ux) / sf / 60, x = as.vector(Ux))) +
+        ggplot2::ggplot(data.frame(t = 1:(length(Ux) / frequency(Ux)), x = as.vector(Ux))) +
         
         # Add a horizontal line at the y-intercept specified by stabs$fps
         # The line is dashed, with a specified color and linewidth
@@ -1912,9 +1922,9 @@ new_plot_overview <-
         ggplot2::scale_x_continuous(expand = c(0, 0))
       
       
-      # Plot inset plot of timeseries (plot_ts_inset) with timeseries from first 1.67 min
-      plot_t_inset = 100 * sf
-      pl_ts_inset = ggplot2::ggplot(data.frame(t = 1:plot_t_inset / sf / 60, x = as.vector(Ux)[1:plot_t_inset])) +
+      # Plot inset plot of timeseries (plot_ts_inset) with timeseries from first 100 timeunits
+      plot_t_inset = 100 * frequency(Ux)
+      pl_ts_inset = ggplot2::ggplot(data.frame(t = 1:(plot_t_inset / frequency(Ux)), x = as.vector(Ux)[1:plot_t_inset])) +
         ggplot2::geom_hline(
           yintercept = stabs$fps,
           color = col_FP_theoretical,
@@ -2287,8 +2297,10 @@ setup_filepaths <- function(filepath_est,
                             strength_D2,
                             N_high_res,
                             sf_high_res,
-                            sf,
-                            N,
+                            # sf,
+                            # N,
+                            interval,
+                            timeseries_length, 
                             noise_iter,
                             step_idx,
                             d13,
@@ -2307,16 +2319,18 @@ setup_filepaths <- function(filepath_est,
   filepath_out = file.path(
     filepath_est,
     sprintf("%s", scenario),
-    sprintf("D2strength_%s", strength_D2),
     sprintf("%s-D2", type_D2), 
-    sprintf("N%s", N), # added
-    sprintf("sf%s", sf), # added
+    sprintf("D2strength%s", strength_D2),
+    # sprintf("N%s", N), # added
+    # sprintf("sf%s", sf), # added
     sprintf("tau%s", ntau), # added
     sprintf(
-      "D2strength%.4f_sf%.2f_N%d_iter%04d_step%04d_pars%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_bins%d_ntau%d_interpol%d_bw%.2f_Downsampled_from_sf%d_N%d.RDS",
+      "Length%d_interval%d_D2strength%.2f_iter%04d_step%04d_pars%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_%.2f_ntau%d_bins%d_interpol%d_bw%.2f_Downsampled_from_sf%d_N%d.RDS",
+      timeseries_length,
+      interval, 
       strength_D2,
-      sf,
-      N, 
+      # sf,
+      # N, 
       noise_iter,
       step_idx,
       d13,
@@ -2326,8 +2340,8 @@ setup_filepaths <- function(filepath_est,
       d22,
       d21,
       d20,
-      bins, 
       ntau, 
+      bins, 
       interpol_steps, 
       bw_sd,
       sf_high_res,
@@ -2338,10 +2352,10 @@ setup_filepaths <- function(filepath_est,
   filepath_image = file.path(
     filepath_figs,
     sprintf("%s", scenario),
-    sprintf("D2strength_%s", strength_D2),
     sprintf("%s-D2", type_D2),
-    sprintf("N%s", N), # added
-    sprintf("sf%s", sf), # added
+    sprintf("D2strength_%s", strength_D2),
+    # sprintf("N%s", N), # added
+    # sprintf("sf%s", sf), # added
     sprintf("tau%s", ntau), # added
     stringr::str_replace(basename(filepath_out), ".RDS", ".pdf")
   )
