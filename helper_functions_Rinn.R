@@ -111,7 +111,8 @@ get_D <- function(nr_steps_bif,
                   # )[1],
                   type_D2,
                   # = c("constant", "quadratic")[1],
-                  strength_D2) {
+                  strength_D2_constant, 
+                  strength_D2_quad) {
   # if (scenario == "1fp") {
   #   # alphas = 0
   #   # betas = 1
@@ -198,9 +199,9 @@ get_D <- function(nr_steps_bif,
     # d12 = 0,
     # d11 = betas,
     # d10 = alphas,
-    d22 = d22 * strength_D2,
-    d21 = d21 * strength_D2,
-    d20 = d20 * strength_D2
+    d22 = d22 * strength_D2_quad,
+    d21 = d21,
+    d20 = d20 * strength_D2_constant
   )  %>% purrr::transpose() %>% unique() %>%
     # In case of no parameter change, repeat same sequence
     rep(ifelse(length(.) == 1, nr_steps_bif, 1))
