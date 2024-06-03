@@ -451,12 +451,14 @@ est_D_Carp <- function(Ux,
       # est_df_Rinn = est_df_Rinn,
       compl_df = compl_df,
       fp_df = fp_df,
-      xeq = Pot$pot_xeq,
       alt_metrics_potential = alt_metrics_potential,
       alt_metrics_prob_dist = alt_metrics_prob_dist,
       # est_df_Carp = est_df_Carp,
       # Pot_df = Pot_df,
-      stab_xeq = Pot$stab_pot_xeq,
+      xeq = Pot$xeq, # fixed points estimated from drift function
+      stab_xeq = Pot$stab_xeq, # stabilities of points estimated from drift function
+      Pot_xeq = Pot$pot_xeq, # fixed points estimated from potential function
+      stab_pot_xeq = Pot$stab_pot_xeq, # stabilities of points estimated from potential function
       Dratio = Pot$Dratio,
       D1D2 = Pot$D1D2,
       D1D2adj = Pot$D1D2adj,
