@@ -2320,6 +2320,7 @@ setup_filepaths <- function(filepath_est,
   # Set up filepath for estimates
   filepath_out = file.path(
     filepath_est,
+    sprintf("interval%s", interval),
     sprintf("%s", scenario),
     sprintf("%s-D2", type_D2), 
     sprintf("D2strength%s", strength_D2),
@@ -2353,6 +2354,7 @@ setup_filepaths <- function(filepath_est,
   # Set up filepath for plot
   filepath_image = file.path(
     filepath_figs,
+    sprintf("interval%s", interval),
     sprintf("%s", scenario),
     sprintf("%s-D2", type_D2),
     sprintf("D2strength_%s", strength_D2),
